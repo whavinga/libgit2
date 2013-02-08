@@ -54,7 +54,7 @@ void git_blame_free(git_blame *blame)
 	git__free(blame);
 }
 
-uint32_t git_blame_hunk_count(git_blame *blame)
+uint32_t git_blame_get_hunk_count(git_blame *blame)
 {
 	assert(blame);
 	return blame->hunks.length;

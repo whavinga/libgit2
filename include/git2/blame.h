@@ -111,7 +111,7 @@ typedef struct git_blame git_blame;
 /**
  * Gets the number of hunks that exist in the blame structure.
  */
-GIT_EXTERN(uint32_t) git_blame_hunk_count(git_blame *blame);
+GIT_EXTERN(uint32_t) git_blame_get_hunk_count(git_blame *blame);
 
 /**
  * Gets the blame hunk at the given index.
@@ -120,7 +120,7 @@ GIT_EXTERN(uint32_t) git_blame_hunk_count(git_blame *blame);
  * @param index index of the hunk to retrieve
  * @return the hunk at the given index, or NULL on error
  */
-GIT_EXTERN(const git_blame_hunk*) git_blame_hunk_byindex(
+GIT_EXTERN(const git_blame_hunk*) git_blame_get_hunk_byindex(
 		git_blame *blame,
 		uint32_t index);
 
@@ -131,7 +131,7 @@ GIT_EXTERN(const git_blame_hunk*) git_blame_hunk_byindex(
  * @param lineno the (1-based) line number to find a hunk for
  * @return the hunk that contains the given line, or NULL on error
  */
-GIT_EXTERN(const git_blame_hunk*) git_blame_hunk_byline(
+GIT_EXTERN(const git_blame_hunk*) git_blame_get_hunk_byline(
 		git_blame *blame,
 		uint32_t lineno);
 
@@ -159,13 +159,15 @@ GIT_EXTERN(int) git_blame_file(
  * @param out pointer that will receive the blame object
  * @param reference output from git_blame_file for the file in question
  * @param buffer the (possibly) modified contents of the file
+ * @param buffer_len number of valid bytes in the buffer
  * @return 0 on success, or an error code. (use giterr_last for information
  *         about the error)
  */
 GIT_EXTERN(int) git_blame_buffer(
 		git_blame **out,
 		git_blame *reference,
-		const char *buffer);
+		const char *buffer,
+		size_t buffer_len);
 
 /**
  * Free memory allocated by git_blame.
