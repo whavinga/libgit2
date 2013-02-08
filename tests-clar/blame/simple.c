@@ -18,7 +18,7 @@ void test_blame_simple__cleanup(void)
 
 void test_blame_simple__foo(void)
 {
-	git_blame_results *blame = NULL;
+	git_blame *blame = NULL;
 	cl_git_pass(git_blame_file(&blame, g_repo, "readme.txt", NULL));
 	git_blame_free(blame);
 }

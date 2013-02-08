@@ -105,39 +105,40 @@ typedef struct git_blame_hunk {
 } git_blame_hunk;
 
 
-typedef struct git_blame_results git_blame_results;
+/* Opaque structure to hold blame results */
+typedef struct git_blame git_blame;
 
 /**
- * Gets the number of hunks that exist in the results structure.
+ * Gets the number of hunks that exist in the blame structure.
  */
-GIT_EXTERN(uint32_t) git_blame_results_hunk_count(git_blame_results *results);
+GIT_EXTERN(uint32_t) git_blame_hunk_count(git_blame *blame);
 
 /**
  * Gets the blame hunk at the given index.
  *
- * @param results the results structure to query
+ * @param blame the blame structure to query
  * @param index index of the hunk to retrieve
  * @return the hunk at the given index, or NULL on error
  */
-GIT_EXTERN(const git_blame_hunk*) git_blame_results_hunk_byindex(
-		git_blame_results *results,
+GIT_EXTERN(const git_blame_hunk*) git_blame_hunk_byindex(
+		git_blame *blame,
 		uint32_t index);
 
 /**
  * Gets the hunk that relates to the given line number in the newest commit.
  *
- * @param results the results structure to query
+ * @param blame the blame structure to query
  * @param lineno the (1-based) line number to find a hunk for
  * @return the hunk that contains the given line, or NULL on error
  */
-GIT_EXTERN(const git_blame_hunk*) git_blame_results_hunk_byline(
-		git_blame_results *results,
+GIT_EXTERN(const git_blame_hunk*) git_blame_hunk_byline(
+		git_blame *blame,
 		uint32_t lineno);
 
 /**
  * Get the blame for a single file.
  *
- * @param out pointer that will receive the results object
+ * @param out pointer that will receive the blame object
  * @param repo repository whose history is to be walked
  * @param path path to file to consider
  * @param options options for the blame operation.  If NULL, this is treated as
@@ -146,7 +147,7 @@ GIT_EXTERN(const git_blame_hunk*) git_blame_results_hunk_byline(
  *         about the error.)
  */
 GIT_EXTERN(int) git_blame_file(
-		git_blame_results **out,
+		git_blame **out,
 		git_repository *repo,
 		const char *path,
 		git_blame_options *options);
@@ -155,23 +156,23 @@ GIT_EXTERN(int) git_blame_file(
 /**
  * Get blame data for a file that has been modified.
  *
- * @param out pointer that will receive the results object
+ * @param out pointer that will receive the blame object
  * @param reference output from git_blame_file for the file in question
  * @param buffer the (possibly) modified contents of the file
  * @return 0 on success, or an error code. (use giterr_last for information
  *         about the error)
  */
 GIT_EXTERN(int) git_blame_buffer(
-		git_blame_results **out,
-		git_blame_results *reference,
+		git_blame **out,
+		git_blame *reference,
 		const char *buffer);
 
 /**
  * Free memory allocated by git_blame.
  *
- * @param results results structure to free
+ * @param blame the blame structure to free
  */
-GIT_EXTERN(void) git_blame_free(git_blame_results *results);
+GIT_EXTERN(void) git_blame_free(git_blame *blame);
 
 /** @} */
 GIT_END_DECL

@@ -14,8 +14,8 @@
 
 
 
-/* Extended-private structures for results. */
-struct git_blame_results {
+/* Private structure for results. */
+struct git_blame {
 	git_vector hunks;
 	git_repository *repository;
 	git_blame_options options;
@@ -32,9 +32,9 @@ static int blame_hunk_cmp(const void *_a, const void *_b)
 	return (a->final_start_line_number == b->final_start_line_number) ? 0 : -1;
 }
 
-static git_blame_results* alloc_results(git_repository *repo, git_blame_options opts)
+static git_blame* alloc_blame(git_repository *repo, git_blame_options opts)
 {
-	git_blame_results *gbr = (git_blame_results*)calloc(1, sizeof(git_blame_results));
+	git_blame *gbr = (git_blame*)calloc(1, sizeof(git_blame));
 	if (!gbr) {
 		giterr_set_oom();
 		return NULL;
@@ -45,25 +45,25 @@ static git_blame_results* alloc_results(git_repository *repo, git_blame_options 
 	return gbr;
 }
 
-void git_blame_free(git_blame_results *results)
+void git_blame_free(git_blame *blame)
 {
-	if (!results) return;
+	if (!blame) return;
 
-	git_vector_free(&results->hunks);
-	if (results->newest_commit_is_ours) git_commit_free(results->options.newest_commit);
-	git__free(results);
+	git_vector_free(&blame->hunks);
+	if (blame->newest_commit_is_ours) git_commit_free(blame->options.newest_commit);
+	git__free(blame);
 }
 
-uint32_t git_blame_results_hunk_count(git_blame_results *results)
+uint32_t git_blame_hunk_count(git_blame *blame)
 {
-	assert(results);
-	return results->hunks.length;
+	assert(blame);
+	return blame->hunks.length;
 }
 
-const git_blame_hunk *git_blame_rests_hunk_byindex(git_blame_results *results, uint32_t index)
+const git_blame_hunk *git_blame_rests_hunk_byindex(git_blame *blame, uint32_t index)
 {
-	assert(results);
-	return (git_blame_hunk*)git_vector_get(&results->hunks, index);
+	assert(blame);
+	return (git_blame_hunk*)git_vector_get(&blame->hunks, index);
 }
 
 void normalize_options(git_blame_options *out, const git_blame_options *in, git_repository *repo)
@@ -83,18 +83,19 @@ void normalize_options(git_blame_options *out, const git_blame_options *in, git_
 }
 
 int git_blame_file(
-		git_blame_results **out,
+		git_blame **out,
 		git_repository *repo,
 		const char *path,
 		git_blame_options *options)
 {
 	git_blame_options normOptions = GIT_BLAME_OPTIONS_INIT;
-	git_blame_results *res = NULL;
+	git_blame *res = NULL;
 
 	if (!out || !repo || !path) return -1;
 	normalize_options(&normOptions, options, repo);
 
-	res = alloc_results(repo, normOptions);
+	res = alloc_blame(repo, normOptions);
+	if (!res) return -1;
 	if (!options || !options->newest_commit)
 		res->newest_commit_is_ours = true;
 
