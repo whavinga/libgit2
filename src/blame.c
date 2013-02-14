@@ -5,41 +5,41 @@
  * a Linking Exception. For full terms see the included COPYING file.
  */
 
-#include "git2/blame.h"
+#include "blame.h"
 #include "git2/commit.h"
-#include "common.h"
-#include "vector.h"
 #include "util.h"
 #include "repository.h"
 
 
 
-/* Private structure for results. */
-struct git_blame {
-	git_vector hunks;
-	git_repository *repository;
-	git_blame_options options;
+int hunk_byline_search_cmp(const void *key, const void *entry)
+{
+	uint32_t lineno = *(size_t*)key;
+	git_blame_hunk *hunk = (git_blame_hunk*)entry;
 
-	bool newest_commit_is_ours;
-};
+	if (lineno < hunk->final_start_line_number)
+		return -1;
+	if (lineno > (hunk->final_start_line_number + hunk->lines_in_hunk))
+		return 1;
+	return 0;
+}
 
-/* Comparator to maintain hunk order */
-static int blame_hunk_cmp(const void *_a, const void *_b)
+int hunk_sort_cmp_by_start_line(const void *_a, const void *_b)
 {
 	git_blame_hunk *a = (git_blame_hunk*)_a,
 						*b = (git_blame_hunk*)_b;
 
-	return (a->final_start_line_number == b->final_start_line_number) ? 0 : -1;
+	return a->final_start_line_number - b->final_start_line_number;
 }
 
-static git_blame* alloc_blame(git_repository *repo, git_blame_options opts)
+git_blame* git_blame__alloc(git_repository *repo, git_blame_options opts)
 {
 	git_blame *gbr = (git_blame*)calloc(1, sizeof(git_blame));
 	if (!gbr) {
 		giterr_set_oom();
 		return NULL;
 	}
-	git_vector_init(&gbr->hunks, 8, blame_hunk_cmp);
+	git_vector_init(&gbr->hunks, 8, hunk_sort_cmp_by_start_line);
 	gbr->repository = repo;
 	gbr->options = opts;
 	return gbr;
@@ -47,7 +47,15 @@ static git_blame* alloc_blame(git_repository *repo, git_blame_options opts)
 
 void git_blame_free(git_blame *blame)
 {
+	size_t i;
+	git_blame_hunk *hunk;
+
 	if (!blame) return;
+
+	git_vector_foreach(&blame->hunks, i, hunk) {
+		git__free((char*)hunk->orig_path);
+		git__free(hunk);
+	}
 
 	git_vector_free(&blame->hunks);
 	if (blame->newest_commit_is_ours) git_commit_free(blame->options.newest_commit);
@@ -60,17 +68,32 @@ uint32_t git_blame_get_hunk_count(git_blame *blame)
 	return blame->hunks.length;
 }
 
-const git_blame_hunk *git_blame_rests_hunk_byindex(git_blame *blame, uint32_t index)
+const git_blame_hunk *git_blame_get_hunk_byindex(git_blame *blame, uint32_t index)
 {
 	assert(blame);
 	return (git_blame_hunk*)git_vector_get(&blame->hunks, index);
 }
 
-void normalize_options(git_blame_options *out, const git_blame_options *in, git_repository *repo)
+const git_blame_hunk *git_blame_get_hunk_byline(git_blame *blame, uint32_t lineno)
+{
+	size_t i;
+	assert(blame);
+
+	if (!git_vector_bsearch2( &i, &blame->hunks, hunk_byline_search_cmp, &lineno)) {
+		return git_blame_get_hunk_byindex(blame, i);
+	}
+
+	return NULL;
+}
+
+static void normalize_options(
+		git_blame_options *out,
+		const git_blame_options *in,
+		git_repository *repo)
 {
 	git_blame_options dummy = GIT_BLAME_OPTIONS_INIT;
 	if (!in) in = &dummy;
-	
+
 	memmove(out, in, sizeof(git_blame_options));
 
 	/* No newest_commit => HEAD */
@@ -89,16 +112,33 @@ int git_blame_file(
 		git_blame_options *options)
 {
 	git_blame_options normOptions = GIT_BLAME_OPTIONS_INIT;
-	git_blame *res = NULL;
+	git_blame *blame = NULL;
 
 	if (!out || !repo || !path) return -1;
 	normalize_options(&normOptions, options, repo);
 
-	res = alloc_blame(repo, normOptions);
-	if (!res) return -1;
+	blame = git_blame__alloc(repo, normOptions);
+	if (!blame) return -1;
 	if (!options || !options->newest_commit)
-		res->newest_commit_is_ours = true;
+		blame->newest_commit_is_ours = true;
 
-	*out = res;
+	*out = blame;
+	return 0;
+}
+
+int git_blame_buffer(
+		git_blame **out,
+		git_blame *reference,
+		const char *buffer,
+		size_t buffer_len)
+{
+	git_blame *blame;
+
+	if (!out || !reference || !buffer || !buffer_len)
+		return -1;
+
+	blame = git_blame__alloc(reference->repository, reference->options);
+
+	*out = blame;
 	return 0;
 }
