@@ -51,11 +51,10 @@ typedef enum {
  *   associate those lines with the parent commit. The default value is 20.
  *   This value only takes effect if any of the `GIT_BLAME_TRACK_COPIES_*`
  *   flags are specified.
- * - `newest_commit` is a rev-parse spec that resolves to the most recent
- *   commit to consider.  The default is HEAD.
- * - `newest_commit` is the newest commit to consider.  The default is HEAD.
- * - `oldest_commit` is the oldest commit to consider.  The default is the
- *   first commit encountered with a NULL parent.
+ * - `newest_commit` is the id of the newest commit to consider.  The default
+ *                   is HEAD.
+ * - `oldest_commit` is the id of the oldest commit to consider.  The default
+ *                   is the first commit encountered with a NULL parent.
  *	- `min_line` is the first line in the file to blame.  The default is 1 (line
  *	  numbers start with 1).
  *	- `max_line` is the last line in the file to blame.  The default is the last
@@ -67,8 +66,8 @@ typedef struct git_blame_options {
 
 	uint32_t flags;
 	uint16_t min_match_characters;
-	git_commit *newest_commit;
-	git_commit *oldest_commit;
+	git_oid newest_commit;
+	git_oid oldest_commit;
 	uint32_t min_line;
 	uint32_t max_line;
 } git_blame_options;

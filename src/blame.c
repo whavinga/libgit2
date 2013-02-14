@@ -7,6 +7,10 @@
 
 #include "blame.h"
 #include "git2/commit.h"
+#include "git2/revparse.h"
+#include "git2/revwalk.h"
+#include "git2/tree.h"
+#include "git2/diff.h"
 #include "util.h"
 #include "repository.h"
 
@@ -58,7 +62,6 @@ void git_blame_free(git_blame *blame)
 	}
 
 	git_vector_free(&blame->hunks);
-	if (blame->newest_commit_is_ours) git_commit_free(blame->options.newest_commit);
 	git__free(blame);
 }
 
@@ -97,12 +100,59 @@ static void normalize_options(
 	memmove(out, in, sizeof(git_blame_options));
 
 	/* No newest_commit => HEAD */
-	if (!out->newest_commit) {
-		git_reference *head = NULL;
-		git_repository_head(&head, repo);
-		git_reference_peel((git_object**)(&out->newest_commit), head, GIT_OBJ_COMMIT);
-		git_reference_free(head);
+	if (git_oid_iszero(&out->newest_commit)) {
+		git_object *obj;
+		git_revparse_single(&obj, repo, "HEAD");
+		git_oid_cpy(&out->newest_commit, git_object_id(obj));
+		git_object_free(obj);
 	}
+}
+
+static int walk_and_mark(git_blame *blame, git_revwalk *walk)
+{
+	git_oid oid;
+	int error;
+
+	while (!(error = git_revwalk_next(&oid, walk))) {
+		git_commit *commit = NULL,
+					  *parent = NULL;
+		git_tree *committree = NULL,
+					*parenttree = NULL;
+		git_diff_list *diff = NULL;
+
+		if ((error = git_commit_lookup(&commit, blame->repository, &oid)) < 0)
+			break;
+
+		/* Don't consider merge commits */
+		if (git_commit_parentcount(commit) > 1)
+			continue;
+
+		error = git_commit_parent(&parent, commit, 0);
+		if (error != 0 && error != GIT_ENOTFOUND)
+			goto cleanup;
+
+		/* Get the trees from this commit and its parent */
+		if ((error = git_commit_tree(&committree, commit)) < 0)
+			goto cleanup;
+		if (parent && ((error = git_commit_tree(&parenttree, parent)) < 0))
+			goto cleanup;
+
+		/* Generate a diff between the two trees */
+		if ((error = git_diff_tree_to_tree(&diff, blame->repository, parenttree, committree, NULL)) < 0)
+			goto cleanup;
+
+cleanup:
+		git_tree_free(committree);
+		git_tree_free(parenttree);
+		git_commit_free(commit);
+		git_commit_free(parent);
+		git_diff_list_free(diff);
+		if (error != 0) break;
+	}
+
+	if (error == GIT_ITEROVER)
+		error = 0;
+	return error;
 }
 
 int git_blame_file(
@@ -111,19 +161,37 @@ int git_blame_file(
 		const char *path,
 		git_blame_options *options)
 {
+	int error = -1;
 	git_blame_options normOptions = GIT_BLAME_OPTIONS_INIT;
 	git_blame *blame = NULL;
+	git_revwalk *walk = NULL;
 
 	if (!out || !repo || !path) return -1;
 	normalize_options(&normOptions, options, repo);
 
 	blame = git_blame__alloc(repo, normOptions);
 	if (!blame) return -1;
-	if (!options || !options->newest_commit)
-		blame->newest_commit_is_ours = true;
 
+	/* Set up the revwalk */
+	if ((error = git_revwalk_new(&walk, repo)) < 0 ||
+		 (error = git_revwalk_push(walk, &normOptions.newest_commit)) < 0)
+		goto on_error;
+	if (!git_oid_iszero(&normOptions.oldest_commit) &&
+		 (error = git_revwalk_hide(walk, &normOptions.oldest_commit)) < 0)
+		goto on_error;
+	git_revwalk_sorting(walk, GIT_SORT_TIME);
+
+	if ((error = walk_and_mark(blame, walk)) < 0)
+		goto on_error;
+
+	git_revwalk_free(walk);
 	*out = blame;
 	return 0;
+
+on_error:
+	git_revwalk_free(walk);
+	git_blame_free(blame);
+	return error;
 }
 
 int git_blame_buffer(
