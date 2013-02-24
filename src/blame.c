@@ -15,8 +15,7 @@
 #include "repository.h"
 
 
-
-int hunk_byline_search_cmp(const void *key, const void *entry)
+static int hunk_byline_search_cmp(const void *key, const void *entry)
 {
 	uint32_t lineno = *(size_t*)key;
 	git_blame_hunk *hunk = (git_blame_hunk*)entry;
@@ -28,7 +27,7 @@ int hunk_byline_search_cmp(const void *key, const void *entry)
 	return 0;
 }
 
-int hunk_sort_cmp_by_start_line(const void *_a, const void *_b)
+static int hunk_sort_cmp_by_start_line(const void *_a, const void *_b)
 {
 	git_blame_hunk *a = (git_blame_hunk*)_a,
 						*b = (git_blame_hunk*)_b;
@@ -36,7 +35,10 @@ int hunk_sort_cmp_by_start_line(const void *_a, const void *_b)
 	return a->final_start_line_number - b->final_start_line_number;
 }
 
-git_blame* git_blame__alloc(git_repository *repo, git_blame_options opts)
+git_blame* git_blame__alloc(
+	git_repository *repo,
+	git_blame_options opts,
+	const char *path)
 {
 	git_blame *gbr = (git_blame*)calloc(1, sizeof(git_blame));
 	if (!gbr) {
@@ -46,6 +48,8 @@ git_blame* git_blame__alloc(git_repository *repo, git_blame_options opts)
 	git_vector_init(&gbr->hunks, 8, hunk_sort_cmp_by_start_line);
 	gbr->repository = repo;
 	gbr->options = opts;
+	gbr->path = git__strdup(path);
+	gbr->lines = NULL;
 	return gbr;
 }
 
@@ -60,8 +64,10 @@ void git_blame_free(git_blame *blame)
 		git__free((char*)hunk->orig_path);
 		git__free(hunk);
 	}
-
 	git_vector_free(&blame->hunks);
+
+	git__free(blame->lines);
+	git__free((void*)blame->path);
 	git__free(blame);
 }
 
@@ -108,6 +114,60 @@ static void normalize_options(
 	}
 }
 
+
+/*******************************************************************************
+ * Trivial blaming
+ *******************************************************************************/
+
+static int trivial_file_cb(
+	const git_diff_delta *delta,
+	float progress,
+	void *payload)
+{
+	GIT_UNUSED(delta);
+	GIT_UNUSED(progress);
+	GIT_UNUSED(payload);
+	return 0;
+}
+
+static int trivial_hunk_cb(
+	const git_diff_delta *delta,
+	const git_diff_range *range,
+	const char *header,
+	size_t header_len,
+	void *payload
+	)
+{
+	printf("  Hunk:\n");
+	return 0;
+}
+
+static int trivial_line_cb(
+	const git_diff_delta *delta,
+	const git_diff_range *range,
+	char line_origin,
+	const char *content,
+	size_t content_len,
+	void *payload)
+{
+	char buf[1024] = {0};
+	git_blame *blame = (git_blame*)payload;
+
+	strncpy(buf, content, content_len-1);
+
+	printf("    %s -> %s  %c  %d-%d (old %d-%d) '%s'\n",
+			delta->old_file.path, delta->new_file.path, line_origin,
+			range->new_start, range->new_start + range->new_lines,
+			range->old_start, range->old_start + range->old_lines,
+			buf);
+	return 0;
+}
+
+static int trivial_match(git_diff_list *diff, git_blame *blame)
+{
+	return git_diff_foreach(diff, trivial_file_cb, trivial_hunk_cb, trivial_line_cb, blame);
+}
+
 static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 {
 	git_oid oid;
@@ -119,11 +179,15 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		git_tree *committree = NULL,
 					*parenttree = NULL;
 		git_diff_list *diff = NULL;
+		git_diff_options diffopts = GIT_DIFF_OPTIONS_INIT;
+		git_diff_find_options diff_find_opts = GIT_DIFF_FIND_OPTIONS_INIT;
+		char *paths[1];
 
 		if ((error = git_commit_lookup(&commit, blame->repository, &oid)) < 0)
 			break;
 
 		/* Don't consider merge commits */
+		/* TODO: git_diff_merge? */
 		if (git_commit_parentcount(commit) > 1)
 			continue;
 
@@ -137,8 +201,28 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		if (parent && ((error = git_commit_tree(&parenttree, parent)) < 0))
 			goto cleanup;
 
+		/* Configure the diff */
+		diffopts.context_lines = 0;
+		strcpy(paths[0], blame->path);
+		diffopts.pathspec.strings = paths;
+		diffopts.pathspec.count = 1;
+
 		/* Generate a diff between the two trees */
-		if ((error = git_diff_tree_to_tree(&diff, blame->repository, parenttree, committree, NULL)) < 0)
+		if ((error = git_diff_tree_to_tree(&diff, blame->repository, parenttree, committree, &diffopts)) < 0)
+			goto cleanup;
+
+		/* Let diff find file moves */
+		if (blame->options.flags & GIT_BLAME_TRACK_FILE_RENAMES)
+			if ((error = git_diff_find_similar(diff, &diff_find_opts)) < 0)
+				goto cleanup;
+
+		/* Trivial matching */
+		{
+			char str[41] = {0};
+			git_oid_fmt(str, &oid);
+			printf("Rev %s\n", str);
+		}
+		if ((error = trivial_match(diff, blame)) < 0)
 			goto cleanup;
 
 cleanup:
@@ -169,7 +253,7 @@ int git_blame_file(
 	if (!out || !repo || !path) return -1;
 	normalize_options(&normOptions, options, repo);
 
-	blame = git_blame__alloc(repo, normOptions);
+	blame = git_blame__alloc(repo, normOptions, path);
 	if (!blame) return -1;
 
 	/* Set up the revwalk */
@@ -205,7 +289,7 @@ int git_blame_buffer(
 	if (!out || !reference || !buffer || !buffer_len)
 		return -1;
 
-	blame = git_blame__alloc(reference->repository, reference->options);
+	blame = git_blame__alloc(reference->repository, reference->options, reference->path);
 
 	*out = blame;
 	return 0;

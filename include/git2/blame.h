@@ -36,6 +36,8 @@ typedef enum {
 	/** Track lines that have been copied from another file that exists in *any*
 	 * commit (like `git blame -CCC`) */
 	GIT_BLAME_TRACK_COPIES_ANY_COMMIT_COPIES = (1<<1 | 1<<2 | 1<<3),
+  /** Track through file renames */
+  GIT_BLAME_TRACK_FILE_RENAMES = (1<<4),
 } git_blame_flag_t;
 
 /**
@@ -57,7 +59,7 @@ typedef enum {
  *                   is the first commit encountered with a NULL parent.
  *	- `min_line` is the first line in the file to blame.  The default is 1 (line
  *	  numbers start with 1).
- *	- `max_line` is the last line in the file to blame.  The default is the last
+ *	- `max_line` is the last line in the fileile to blame.  The default is the last
  *	  line of the file.
  */
 

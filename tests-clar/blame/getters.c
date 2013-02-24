@@ -17,7 +17,7 @@ void test_blame_getters__initialize(void)
 		{ 3, {{0}}, 13, {{0}}, "e", 0},
 	};
 
-	g_blame = git_blame__alloc(NULL, opts);
+	g_blame = git_blame__alloc(NULL, opts, "");
 
 	for (i=0; i<5; i++) {
 		git_blame_hunk *h = (git_blame_hunk*)calloc(1, sizeof(git_blame_hunk));
