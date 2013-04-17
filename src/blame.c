@@ -114,6 +114,35 @@ static void normalize_options(
 	}
 }
 
+static void dump_lines(git_blame *blame)
+{
+	size_t i;
+	for (i=0; i<blame->num_lines; i++) {
+		char sha[41] = {0};
+		git_blame__line *line = &blame->lines[i];
+		git_oid_fmt(sha, &line->origin_oid);
+		printf("%ld (%d) %s\n", i+1, line->tracked_line_number, sha);
+	}
+}
+
+static void adjust_tracked_lines(git_blame *blame, char line_origin)
+{
+	size_t i;
+	int adj;
+
+	switch (line_origin)
+	{
+	case GIT_DIFF_LINE_ADDITION:    adj = -1; break;
+	case GIT_DIFF_LINE_DELETION:    adj =  1; break;
+	default: return;
+	}
+
+	for (i=blame->current_line; i<blame->num_lines; i++) {
+		blame->lines[i].tracked_line_number += adj;
+	}
+
+	dump_lines(blame);
+}
 
 /*******************************************************************************
  * Trivial blaming
@@ -135,11 +164,35 @@ static int trivial_hunk_cb(
 	const git_diff_range *range,
 	const char *header,
 	size_t header_len,
-	void *payload
-	)
+	void *payload)
 {
-	printf("  Hunk:\n");
+	git_blame *blame = (git_blame*)payload;
+
+	GIT_UNUSED(delta);
+	GIT_UNUSED(range);
+	GIT_UNUSED(header);
+	GIT_UNUSED(header_len);
+
+	printf("  Hunk: %s (%d-%d) -> %s (%d-%d)\n",
+			delta->old_file.path,
+			range->old_start, range->old_start + range->old_lines,
+			delta->new_file.path,
+			range->new_start, range->new_start + range->new_lines);
+	blame->current_line = range->new_start;
 	return 0;
+}
+
+static git_blame__line* find_line_by_tracked_number(git_blame *blame)
+{
+	size_t i;
+
+	for (i=0; i<blame->num_lines; i++)
+	{
+		if (blame->lines[i].tracked_line_number == blame->current_line &&
+		    git_oid_iszero(&blame->lines[i].origin_oid))
+			return &blame->lines[i];
+	}
+	return NULL;
 }
 
 static int trivial_line_cb(
@@ -152,14 +205,23 @@ static int trivial_line_cb(
 {
 	char buf[1024] = {0};
 	git_blame *blame = (git_blame*)payload;
+	git_blame__line *line = find_line_by_tracked_number(blame);
+
+	GIT_UNUSED(range);
 
 	strncpy(buf, content, content_len-1);
+	printf("    %c %s\n", line_origin, buf);
 
-	printf("    %s -> %s  %c  %d-%d (old %d-%d) '%s'\n",
-			delta->old_file.path, delta->new_file.path, line_origin,
-			range->new_start, range->new_start + range->new_lines,
-			range->old_start, range->old_start + range->old_lines,
-			buf);
+	if (line_origin == GIT_DIFF_LINE_ADDITION &&
+		 line &&
+	    git_oid_iszero(&line->origin_oid)) {
+		git_oid_cpy(&line->origin_oid, &blame->current_commit);
+		printf("Marked!\n");
+	}
+
+	adjust_tracked_lines(blame, line_origin);
+	blame->current_line++;
+
 	return 0;
 }
 
@@ -216,6 +278,8 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 			if ((error = git_diff_find_similar(diff, &diff_find_opts)) < 0)
 				goto cleanup;
 
+		git_oid_cpy(&blame->current_commit, &oid);
+
 		/* Trivial matching */
 		{
 			char str[41] = {0};
@@ -239,6 +303,73 @@ cleanup:
 	return error;
 }
 
+static int get_line_count(size_t *out, git_repository *repo, git_oid *commit_id, const char *path)
+{
+	int retval = -1;
+	git_commit *commit = NULL;
+	git_tree *tree = NULL;
+	git_tree_entry *tree_entry = NULL;
+	git_object *obj = NULL;
+
+	if (git_commit_lookup(&commit, repo, commit_id) < 0 ||
+	    git_commit_tree(&tree, commit) < 0 ||
+	    git_tree_entry_bypath(&tree_entry, tree, path) < 0 ||
+	    git_tree_entry_to_object(&obj, repo, tree_entry) < 0 ||
+	    git_object_type(obj) != GIT_OBJ_BLOB)
+		goto cleanup;
+
+	{
+		size_t count = 0;
+		const char *str = git_blob_rawcontent((git_blob*)obj);
+		while ((str = strchr(str+1, '\n')) != NULL)
+			count++;
+		if (out) *out = count;
+		retval = 0;
+	}
+	printf("%s has %d lines\n", path, *out);
+
+cleanup:
+	git_object_free(obj);
+	git_tree_entry_free(tree_entry);
+	git_tree_free(tree);
+	git_commit_free(commit);
+	return retval;
+}
+
+static int get_line_count(size_t *out, git_repository *repo, git_oid *commit_id, const char *path)
+{
+	int retval = -1;
+	git_commit *commit = NULL;
+	git_tree *tree = NULL;
+	git_tree_entry *tree_entry = NULL;
+	git_object *obj = NULL;
+
+	if (git_commit_lookup(&commit, repo, commit_id) < 0 ||
+	    git_commit_tree(&tree, commit) < 0 ||
+	    git_tree_entry_bypath(&tree_entry, tree, path) < 0 ||
+	    git_tree_entry_to_object(&obj, repo, tree_entry) < 0 ||
+	    git_object_type(obj) != GIT_OBJ_BLOB)
+		goto cleanup;
+
+	{
+		size_t count = 0;
+		const char *str = git_blob_rawcontent((git_blob*)obj);
+		while ((str = strchr(str+1, '\n')) != NULL)
+			count++;
+		if (out) *out = count;
+		retval = 0;
+	}
+	printf("%s has %zd lines\n", path, *out);
+
+cleanup:
+	git_object_free(obj);
+	git_tree_entry_free(tree_entry);
+	git_tree_free(tree);
+	git_commit_free(commit);
+	return retval;
+}
+
+>>>>>>> deed710... Some progress toward trivial blame
 int git_blame_file(
 		git_blame **out,
 		git_repository *repo,
@@ -246,6 +377,7 @@ int git_blame_file(
 		git_blame_options *options)
 {
 	int error = -1;
+	size_t i;
 	git_blame_options normOptions = GIT_BLAME_OPTIONS_INIT;
 	git_blame *blame = NULL;
 	git_revwalk *walk = NULL;
@@ -265,8 +397,17 @@ int git_blame_file(
 		goto on_error;
 	git_revwalk_sorting(walk, GIT_SORT_TIME);
 
+	if ((error = get_line_count(&blame->num_lines, repo, &normOptions.newest_commit, path)) < 0)
+		goto on_error;
+	blame->lines = git__calloc(blame->num_lines, sizeof(git_blame__line));
+	if (!blame->lines) goto on_error;
+	for (i=0; i<blame->num_lines; i++)
+		blame->lines[i].tracked_line_number = i+1;
+
 	if ((error = walk_and_mark(blame, walk)) < 0)
 		goto on_error;
+
+	dump_lines(blame);
 
 	git_revwalk_free(walk);
 	*out = blame;
