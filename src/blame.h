@@ -1,19 +1,28 @@
 #include "git2/blame.h"
 #include "common.h"
 #include "vector.h"
+#include "diff.h"
 
 struct git_blame {
 	const char *path;
-	git_vector hunks;
 	git_repository *repository;
 	git_blame_options options;
 
-	git_blame__line *lines;
-	size_t num_lines;
+	git_vector hunks;
+	git_vector unclaimed_hunks;
 
-	/* Trivial context */
-	size_t current_line;
+	git_blob *final_blob;
+	size_t num_lines;
+	int *line_index;
+
 	git_oid current_commit;
+	const git_diff_delta *current_delta;
+	const git_diff_range *current_range;
+	size_t current_line;
+	size_t last_line;
+	git_blame_hunk *current_hunk;
+
+	bool trivial_file_match;
 };
 
 git_blame *git_blame__alloc(
