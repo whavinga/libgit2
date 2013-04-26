@@ -11,7 +11,7 @@ static void check_blame_hunk_index(git_blame *blame, int idx, int start_line, in
 	cl_assert_equal_i(hunk->final_start_line_number, start_line);
 	cl_assert_equal_i(hunk->lines_in_hunk, len);
 
-	cl_git_pass(git_oid_streq(&hunk->final_commit_id, commit_id));
+	cl_assert_equal_i(0, git_oid_streq(&hunk->final_commit_id, commit_id));
 }
 
 /*
