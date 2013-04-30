@@ -14,6 +14,11 @@
 #include "util.h"
 #include "repository.h"
 
+#if 0
+#define DEBUGF(...) printf(__VA_ARGS__)
+#else
+#define DEBUGF(...)
+#endif
 
 static int hunk_byline_search_cmp(const void *key, const void *entry)
 {
@@ -179,14 +184,14 @@ static void dump_hunks(git_blame *blame)
 
 	git_vector_foreach(&blame->hunks, i, hunk) {
 		git_oid_fmt(str, &hunk->final_commit_id);
-		printf("CLAIMED: %d-%d (orig %d) %s\n",
+		DEBUGF("CLAIMED: %d-%d (orig %d) %s\n",
 				hunk->final_start_line_number,
 				hunk->final_start_line_number + hunk->lines_in_hunk - 1,
 				hunk->orig_start_line_number,
 				str);
 	}
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
-		printf("UNCLAIMED: %d-%d (orig %d)\n",
+		DEBUGF("UNCLAIMED: %d-%d (orig %d)\n",
 				hunk->final_start_line_number,
 				hunk->final_start_line_number + hunk->lines_in_hunk - 1,
 				hunk->orig_start_line_number);
@@ -234,7 +239,7 @@ static int trivial_hunk_cb(
 	GIT_UNUSED(header);
 	GIT_UNUSED(header_len);
 
-	printf("  Hunk: %s (%d-%d) <- %s (%d-%d)\n",
+	DEBUGF("  Hunk: %s (%d-%d) <- %s (%d-%d)\n",
 			delta->new_file.path,
 			range->new_start, range->new_start + max(0, range->new_lines -1),
 			delta->old_file.path,
@@ -262,7 +267,7 @@ static git_blame_hunk* split_current_hunk(git_blame *blame, size_t at_line, bool
 		return hunk;
 
 	{
-		printf("Splitting hunk at line %zu\n", at_line);
+		DEBUGF("Splitting hunk at line %zu\n", at_line);
 		size_t new_line_count = hunk->orig_start_line_number + hunk->lines_in_hunk - at_line;
 		git_blame_hunk *nh = new_hunk(at_line, new_line_count, at_line, hunk->orig_path);
 		hunk->lines_in_hunk -= new_line_count;
@@ -279,7 +284,7 @@ static void close_and_claim_current_hunk(git_blame *blame)
 
 	if (!hunk) return;
 
-	printf("Closing hunk at line %zu\n", blame->current_blame_line);
+	DEBUGF("Closing hunk at line %zu\n", blame->current_blame_line);
 
 	/* Split this hunk if its end isn't at the current line */
 	hunk = split_current_hunk(blame, blame->current_blame_line+1, false);
@@ -302,7 +307,7 @@ static void match_line(git_blame *blame, const char *line, size_t len)
 
 	/* First, try the current hunk's current line. */
 	if (hunk && !memcmp(raw_line(blame, blame->current_blame_line), line, len)) {
-		printf("•\n");
+		DEBUGF("•\n");
 		return;
 	}
 
@@ -315,7 +320,7 @@ static void match_line(git_blame *blame, const char *line, size_t len)
 			if (!memcmp(raw_line(blame, j), line, len)) {
 				close_and_claim_current_hunk(blame);
 				
-				printf("matched at line %zu (%p)\n", j, hunk);
+				DEBUGF("matched at line %zu (%p)\n", j, hunk);
 				blame->current_hunk = hunk;
 				blame->current_blame_line = j;
 				blame->current_hunk = split_current_hunk(blame, j, true);
@@ -326,7 +331,7 @@ static void match_line(git_blame *blame, const char *line, size_t len)
 	}
 
 	/* If we get this far, we didn't find a matching line. */
-	printf("***Couldn't find '%s' anywhere!\n", line);
+	DEBUGF("***Couldn't find '%s' anywhere!\n", line);
 	blame->current_hunk = NULL;
 }
 
@@ -347,7 +352,7 @@ static int trivial_line_cb(
 
 	{
 		char *str = git__substrdup(content, content_len);
-		printf("    %c %zu %s", line_origin, blame->current_diff_line, str);
+		DEBUGF("    %c %zu %s", line_origin, blame->current_diff_line, str);
 		git__free(str);
 	}
 
@@ -355,7 +360,7 @@ static int trivial_line_cb(
 		match_line(blame, content, content_len);
 
 	/* End of hunk? Close it off and claim it */
-	printf("diff line %zu, end of diff %d\n", blame->current_diff_line,
+	DEBUGF("diff line %zu, end of diff %d\n", blame->current_diff_line,
 			 range->new_start + range->new_lines);
 	if (blame->current_diff_line == (size_t)(range->new_start + range->new_lines - 1))
 	{
@@ -426,7 +431,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		{
 			char str[41] = {0};
 			git_oid_fmt(str, &oid);
-			printf("Rev %s\n", str);
+			DEBUGF("Rev %s\n", str);
 		}
 		if ((error = trivial_match(diff, blame)) < 0)
 			goto cleanup;
@@ -502,7 +507,7 @@ int git_blame_file(
 
 	if ((error = load_blob(blame, repo, &normOptions.newest_commit, path)) < 0)
 		goto on_error;
-	printf("\n'%s' has %zu lines\n", path, blame->num_lines);
+	DEBUGF("\n'%s' has %zu lines\n", path, blame->num_lines);
 
 	/* Initial blame hunk - all lines are unknown */
 	git_vector_insert(&blame->unclaimed_hunks,
