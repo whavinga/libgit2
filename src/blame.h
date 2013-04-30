@@ -16,9 +16,8 @@ struct git_blame {
 	int *line_index;
 
 	git_oid current_commit;
-	const git_diff_delta *current_delta;
-	const git_diff_range *current_range;
-	size_t current_line;
+	size_t current_diff_line;
+	size_t current_blame_line;
 	git_blame_hunk *current_hunk;
 
 	bool trivial_file_match;
