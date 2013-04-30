@@ -27,7 +27,7 @@ static int hunk_byline_search_cmp(const void *key, const void *entry)
 
 	if (lineno < hunk->final_start_line_number)
 		return -1;
-	if (lineno > (hunk->final_start_line_number + hunk->lines_in_hunk))
+	if (lineno > ((uint32_t)hunk->final_start_line_number + hunk->lines_in_hunk))
 		return 1;
 	return 0;
 }
@@ -87,7 +87,7 @@ static int prepare_lines(git_blame *blame)
 {
 	const char *final_buf = git_blob_rawcontent(blame->final_blob);
 	const char *buf = final_buf;
-	unsigned long len = git_blob_rawsize(blame->final_blob);
+	git_off_t len = git_blob_rawsize(blame->final_blob);
 	int num = 0, incomplete = 0, bol = 1;
 
 	if (len && buf[len-1] != '\n')
@@ -259,17 +259,20 @@ static const char* raw_line(git_blame *blame, size_t i)
 static git_blame_hunk* split_current_hunk(git_blame *blame, size_t at_line, bool return_new)
 {
 	git_blame_hunk *hunk = blame->current_hunk;
+	size_t new_line_count;
+	git_blame_hunk *nh;
+
 	if (!hunk) return NULL;
 
 	/* Boundaries; don't create a 0-length hunk */
-	if (at_line <= hunk->final_start_line_number ||
-	    at_line >= hunk->final_start_line_number+hunk->lines_in_hunk)
+	if (at_line <= (size_t)hunk->final_start_line_number ||
+	    at_line >= (size_t)hunk->final_start_line_number+hunk->lines_in_hunk)
 		return hunk;
 
 	{
 		DEBUGF("Splitting hunk at line %zu\n", at_line);
-		size_t new_line_count = hunk->orig_start_line_number + hunk->lines_in_hunk - at_line;
-		git_blame_hunk *nh = new_hunk(at_line, new_line_count, at_line, hunk->orig_path);
+		new_line_count = hunk->orig_start_line_number + hunk->lines_in_hunk - at_line;
+		nh = new_hunk(at_line, new_line_count, at_line, hunk->orig_path);
 		hunk->lines_in_hunk -= new_line_count;
 		git_vector_insert(&blame->unclaimed_hunks, nh);
 		dump_hunks(blame);
@@ -313,8 +316,8 @@ static void match_line(git_blame *blame, const char *line, size_t len)
 
 	/* Do a linear search for a matching line in all unclaimed hunks */
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
-		for (j=hunk->final_start_line_number;
-		     j<hunk->final_start_line_number + hunk->lines_in_hunk;
+		for (j = hunk->final_start_line_number;
+		     j < (size_t)hunk->final_start_line_number + hunk->lines_in_hunk;
 		     j++)
 		{
 			if (!memcmp(raw_line(blame, j), line, len)) {
