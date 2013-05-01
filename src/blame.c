@@ -15,6 +15,7 @@
 #include "repository.h"
 
 #if 0
+#define DO_DEBUG
 #define DEBUGF(...) printf(__VA_ARGS__)
 #else
 #define DEBUGF(...)
@@ -180,7 +181,9 @@ static void dump_hunks(git_blame *blame)
 	git_blame_hunk *hunk;
 	char str[41] = {0};
 
-	/*return;*/
+#ifndef DO_DEBUG
+	return;
+#endif
 
 	git_vector_foreach(&blame->hunks, i, hunk) {
 		git_oid_fmt(str, &hunk->final_commit_id);
@@ -267,17 +270,20 @@ static git_blame_hunk* split_current_hunk(git_blame *blame, size_t at_line, bool
 	/* Boundaries; don't create a 0-length hunk */
 	if (at_line <= (size_t)hunk->final_start_line_number ||
 	    at_line >= (size_t)hunk->final_start_line_number+hunk->lines_in_hunk)
-		return hunk;
-
 	{
-		DEBUGF("Splitting hunk at line %zu\n", at_line);
-		new_line_count = hunk->orig_start_line_number + hunk->lines_in_hunk - at_line;
-		nh = new_hunk(at_line, new_line_count, at_line, hunk->orig_path);
-		hunk->lines_in_hunk -= new_line_count;
-		git_vector_insert(&blame->unclaimed_hunks, nh);
-		dump_hunks(blame);
-		return return_new ? nh : hunk;
+		DEBUGF("Tried to split hunk (%zu-%zu) at line %zu\n", 
+				hunk->final_start_line_number,
+				hunk->final_start_line_number+hunk->lines_in_hunk,
+				at_line);
+		return hunk;
 	}
+
+	new_line_count = hunk->final_start_line_number + hunk->lines_in_hunk - at_line;
+	DEBUGF("Splitting hunk at line %zu (+%zu)\n", at_line, new_line_count);
+	nh = new_hunk(at_line, new_line_count, at_line, hunk->orig_path);
+	hunk->lines_in_hunk -= (new_line_count);
+	git_vector_insert(&blame->unclaimed_hunks, nh);
+	return return_new ? nh : hunk;
 }
 
 static void close_and_claim_current_hunk(git_blame *blame)
@@ -285,7 +291,10 @@ static void close_and_claim_current_hunk(git_blame *blame)
 	size_t i;
 	git_blame_hunk *hunk = blame->current_hunk;
 
-	if (!hunk) return;
+	if (!hunk) {
+		DEBUGF("Can't close NULL hunk\n");
+		return;
+	}
 
 	DEBUGF("Closing hunk at line %zu\n", blame->current_blame_line);
 
@@ -363,16 +372,17 @@ static int trivial_line_cb(
 		match_line(blame, content, content_len);
 
 	/* End of hunk? Close it off and claim it */
-	DEBUGF("diff line %zu, end of diff %d\n", blame->current_diff_line,
-			 range->new_start + range->new_lines);
+	DEBUGF("diff line %zu, diff goes to %d\n", blame->current_diff_line,
+			 range->new_start + range->new_lines - 1);
 	if (blame->current_diff_line == (size_t)(range->new_start + range->new_lines - 1))
 	{
 		close_and_claim_current_hunk(blame);
 	}
 
-	if (line_origin == GIT_DIFF_LINE_ADDITION)
+	if (line_origin == GIT_DIFF_LINE_ADDITION) {
 		blame->current_blame_line++;
-	blame->current_diff_line++;
+		blame->current_diff_line++;
+	}
 
 	return 0;
 }
@@ -431,11 +441,13 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		git_oid_cpy(&blame->current_commit, &oid);
 
 		/* Trivial matching */
+#ifndef DO_DEBUG
 		{
 			char str[41] = {0};
 			git_oid_fmt(str, &oid);
 			DEBUGF("Rev %s\n", str);
 		}
+#endif
 		if ((error = trivial_match(diff, blame)) < 0)
 			goto cleanup;
 		git_vector_sort(&blame->hunks);
