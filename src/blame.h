@@ -10,6 +10,7 @@ struct git_blame {
 
 	git_vector hunks;
 	git_vector unclaimed_hunks;
+	git_vector paths;
 
 	git_blob *final_blob;
 	size_t num_lines;

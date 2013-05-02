@@ -72,9 +72,11 @@ git_blame* git_blame__alloc(
 	}
 	git_vector_init(&gbr->hunks, 8, hunk_sort_cmp_by_start_line);
 	git_vector_init(&gbr->unclaimed_hunks, 8, hunk_sort_cmp_by_start_line);
+	git_vector_init(&gbr->paths, 8, git__strcmp);
 	gbr->repository = repo;
 	gbr->options = opts;
 	gbr->path = git__strdup(path);
+	git_vector_insert(&gbr->paths, git__strdup(path));
 	gbr->final_blob = NULL;
 	return gbr;
 }
@@ -116,6 +118,7 @@ void git_blame_free(git_blame *blame)
 {
 	size_t i;
 	git_blame_hunk *hunk;
+	char *path;
 
 	if (!blame) return;
 
@@ -126,6 +129,10 @@ void git_blame_free(git_blame *blame)
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk)
 		free_hunk(hunk);
 	git_vector_free(&blame->unclaimed_hunks);
+
+	git_vector_foreach(&blame->paths, i, path)
+		git__free(path);
+	git_vector_free(&blame->paths);
 
 	git__free((void*)blame->path);
 	git_blob_free(blame->final_blob);
@@ -429,9 +436,18 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		/* Configure the diff */
 		diffopts.context_lines = 0;
 
-		/* Generate a diff between the two trees */
+		/* Check to see if files we're interested in have changed */
+		diffopts.pathspec.count = blame->paths.length;
+		diffopts.pathspec.strings = (char**)blame->paths.contents;
 		if ((error = git_diff_tree_to_tree(&diff, blame->repository, parenttree, committree, &diffopts)) < 0)
 			goto cleanup;
+
+		/* Generate a full diff between the two trees */
+		if (git_diff_num_deltas(diff) > 0) {
+			diffopts.pathspec.count = 0;
+			if ((error = git_diff_tree_to_tree(&diff, blame->repository, parenttree, committree, &diffopts)) < 0)
+				goto cleanup;
+		}
 
 		/* Let diff find file moves */
 		if (blame->options.flags & GIT_BLAME_TRACK_FILE_RENAMES)
