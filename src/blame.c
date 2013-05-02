@@ -60,6 +60,14 @@ static void free_hunk(git_blame_hunk *hunk)
 	git__free(hunk);
 }
 
+static int paths_cmp(const void *a, const void *b) { return git__strcmp((char*)a, (char*)b); }
+static int paths_duplicate(void **a, void *b) { GIT_UNUSED(a); GIT_UNUSED(b); return -1; }
+static void add_if_not_present(git_vector *v, const char *value)
+{
+	DEBUGF("&& now watching %s\n", value);
+	git_vector_insert_sorted(v, (void*)value, paths_duplicate);
+}
+
 git_blame* git_blame__alloc(
 	git_repository *repo,
 	git_blame_options opts,
@@ -72,7 +80,7 @@ git_blame* git_blame__alloc(
 	}
 	git_vector_init(&gbr->hunks, 8, hunk_sort_cmp_by_start_line);
 	git_vector_init(&gbr->unclaimed_hunks, 8, hunk_sort_cmp_by_start_line);
-	git_vector_init(&gbr->paths, 8, git__strcmp);
+	git_vector_init(&gbr->paths, 8, paths_cmp);
 	gbr->repository = repo;
 	gbr->options = opts;
 	gbr->path = git__strdup(path);
@@ -187,17 +195,25 @@ static void dump_hunks(git_blame *blame)
 	size_t i;
 	git_blame_hunk *hunk;
 	char str[41] = {0};
+	char *path;
 
 #ifndef DO_DEBUG
 	return;
 #endif
 
+	DEBUGF("Paths watched: ");
+	git_vector_foreach(&blame->paths, i, path) {
+		DEBUGF("%s   ", path);
+	}
+	DEBUGF("\n");
+
 	git_vector_foreach(&blame->hunks, i, hunk) {
 		git_oid_fmt(str, &hunk->final_commit_id);
-		DEBUGF("CLAIMED: %d-%d (orig %d) %s\n",
+		DEBUGF("CLAIMED: %d-%d (orig %d in %s) %s\n",
 				hunk->final_start_line_number,
 				hunk->final_start_line_number + hunk->lines_in_hunk - 1,
 				hunk->orig_start_line_number,
+				hunk->orig_path,
 				str);
 	}
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
@@ -245,15 +261,19 @@ static int trivial_hunk_cb(
 
 	if (!blame->trivial_file_match) return 0;
 
-	GIT_UNUSED(delta);
 	GIT_UNUSED(header);
 	GIT_UNUSED(header_len);
 
+	add_if_not_present(&blame->paths, delta->old_file.path);
+	if (git__strcmp(blame->path, delta->old_file.path)) {
+		DEBUGF("===> Now tracking %s through %s\n", blame->path, delta->old_file.path);
+	}
+
 	DEBUGF("  Hunk: %s (%d-%d) <- %s (%d-%d)\n",
 			delta->new_file.path,
-			range->new_start, range->new_start + max(0, range->new_lines -1),
+			range->new_start, range->new_start + max(0, range->new_lines - 1),
 			delta->old_file.path,
-			range->old_start, range->old_start + max(0, range->old_lines -1));
+			range->old_start, range->old_start + max(0, range->old_lines - 1));
 
 	blame->current_diff_line = range->new_start;
 
@@ -278,7 +298,7 @@ static git_blame_hunk* split_current_hunk(git_blame *blame, size_t at_line, bool
 	if (at_line <= (size_t)hunk->final_start_line_number ||
 	    at_line >= (size_t)hunk->final_start_line_number+hunk->lines_in_hunk)
 	{
-		DEBUGF("Tried to split hunk (%zu-%zu) at line %zu\n", 
+		DEBUGF("Tried to split hunk (%u-%u) at line %zu\n", 
 				hunk->final_start_line_number,
 				hunk->final_start_line_number+hunk->lines_in_hunk,
 				at_line);
@@ -293,7 +313,7 @@ static git_blame_hunk* split_current_hunk(git_blame *blame, size_t at_line, bool
 	return return_new ? nh : hunk;
 }
 
-static void close_and_claim_current_hunk(git_blame *blame)
+static void close_and_claim_current_hunk(git_blame *blame, const char *orig_path)
 {
 	size_t i;
 	git_blame_hunk *hunk = blame->current_hunk;
@@ -303,7 +323,7 @@ static void close_and_claim_current_hunk(git_blame *blame)
 		return;
 	}
 
-	DEBUGF("Closing hunk at line %zu\n", blame->current_blame_line);
+	DEBUGF("Closing hunk at line %zu ('%s')\n", blame->current_blame_line, orig_path);
 
 	/* Split this hunk if its end isn't at the current line */
 	hunk = split_current_hunk(blame, blame->current_blame_line+1, false);
@@ -314,19 +334,21 @@ static void close_and_claim_current_hunk(git_blame *blame)
 
 	git_oid_cpy(&hunk->final_commit_id, &blame->current_commit);
 	git_oid_cpy(&hunk->orig_commit_id, &blame->current_commit);
+	hunk->orig_path = git__strdup(orig_path);
+
 	git_vector_insert(&blame->hunks, hunk);
 	blame->current_hunk = NULL;
 	dump_hunks(blame);
 }
 
-static void match_line(git_blame *blame, const char *line, size_t len)
+static void match_line(git_blame *blame, const char *line, size_t len, const char *orig_path)
 {
 	git_blame_hunk *hunk = blame->current_hunk;
 	size_t i, j;
 
 	/* First, try the current hunk's current line. */
 	if (hunk && !memcmp(raw_line(blame, blame->current_blame_line), line, len)) {
-		DEBUGF("•\n");
+		/*DEBUGF("•\n");*/
 		return;
 	}
 
@@ -337,9 +359,9 @@ static void match_line(git_blame *blame, const char *line, size_t len)
 		     j++)
 		{
 			if (!memcmp(raw_line(blame, j), line, len)) {
-				close_and_claim_current_hunk(blame);
+				close_and_claim_current_hunk(blame, orig_path);
 				
-				DEBUGF("matched at line %zu (%p)\n", j, hunk);
+				/*DEBUGF("matched at line %zu (%p)\n", j, hunk);*/
 				blame->current_hunk = hunk;
 				blame->current_blame_line = j;
 				blame->current_hunk = split_current_hunk(blame, j, true);
@@ -350,7 +372,7 @@ static void match_line(git_blame *blame, const char *line, size_t len)
 	}
 
 	/* If we get this far, we didn't find a matching line. */
-	DEBUGF("***Couldn't find '%s' anywhere!\n", line);
+//	DEBUGF("***Couldn't find '%s' anywhere!\n", line);
 	blame->current_hunk = NULL;
 }
 
@@ -365,25 +387,24 @@ static int trivial_line_cb(
 	git_blame *blame = (git_blame*)payload;
 	if (!blame->trivial_file_match) return 0;
 
-	GIT_UNUSED(content);
-	GIT_UNUSED(content_len);
-	GIT_UNUSED(delta);
-
+#ifdef DO_DEBUG
 	{
 		char *str = git__substrdup(content, content_len);
 		DEBUGF("    %c %zu %s", line_origin, blame->current_diff_line, str);
 		git__free(str);
 	}
+#endif
 
 	if (line_origin == GIT_DIFF_LINE_ADDITION)
-		match_line(blame, content, content_len);
+		match_line(blame, content, content_len, delta->old_file.path);
+	/* DEBUGF("(done with line %zu of %d)\n", 
+			blame->current_diff_line,
+			range->new_start + range->new_lines); */
 
 	/* End of hunk? Close it off and claim it */
-	DEBUGF("diff line %zu, diff goes to %d\n", blame->current_diff_line,
-			 range->new_start + range->new_lines - 1);
-	if (blame->current_diff_line == (size_t)(range->new_start + range->new_lines - 1))
+	if (blame->current_diff_line >= (size_t)(range->new_start + range->new_lines - 1))
 	{
-		close_and_claim_current_hunk(blame);
+		close_and_claim_current_hunk(blame, delta->old_file.path);
 	}
 
 	if (line_origin == GIT_DIFF_LINE_ADDITION) {
@@ -415,6 +436,14 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		git_diff_options diffopts = GIT_DIFF_OPTIONS_INIT;
 		git_diff_find_options diff_find_opts = GIT_DIFF_FIND_OPTIONS_INIT;
 		char *paths[1];
+
+#ifdef DO_DEBUG
+		{
+			char str[41] = {0};
+			git_oid_fmt(str, &oid);
+			DEBUGF("Rev %s\n", str);
+		}
+#endif
 
 		if ((error = git_commit_lookup(&commit, blame->repository, &oid)) < 0)
 			break;
@@ -450,22 +479,18 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		}
 
 		/* Let diff find file moves */
-		if (blame->options.flags & GIT_BLAME_TRACK_FILE_RENAMES)
-			if ((error = git_diff_find_similar(diff, &diff_find_opts)) < 0)
-				goto cleanup;
+		diff_find_opts.flags =
+			GIT_DIFF_FIND_RENAMES_FROM_REWRITES |
+			GIT_DIFF_FIND_RENAMES;
+		if ((error = git_diff_find_similar(diff, &diff_find_opts)) < 0)
+			goto cleanup;
 
 		git_oid_cpy(&blame->current_commit, &oid);
 
 		/* Trivial matching */
-#ifndef DO_DEBUG
-		{
-			char str[41] = {0};
-			git_oid_fmt(str, &oid);
-			DEBUGF("Rev %s\n", str);
-		}
-#endif
 		if ((error = trivial_match(diff, blame)) < 0)
 			goto cleanup;
+
 		git_vector_sort(&blame->hunks);
 
 cleanup:
