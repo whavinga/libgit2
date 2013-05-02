@@ -528,3 +528,47 @@ void test_diff_tree__diff_configs(void)
 	cl_assert_equal_i(7, expect.line_adds);
 	cl_assert_equal_i(15, expect.line_dels);
 }
+
+static void diff_to_parent_tree(const char *commitish)
+{
+	git_commit *commit = NULL,
+	           *parent = NULL;
+	git_tree *committree = NULL,
+	         *parenttree = NULL;
+	git_diff_list *diff = NULL;
+	git_diff_options diffopts = GIT_DIFF_OPTIONS_INIT;
+	git_diff_find_options findopts = GIT_DIFF_FIND_OPTIONS_INIT;
+
+	/* Load up the commit's tree */
+	cl_git_pass(git_revparse_single((git_object**)&commit, g_repo, commitish));
+	cl_git_pass(git_commit_tree(&committree, commit));
+
+	/* Load up the first parent tree */
+	cl_git_pass(git_commit_parent(&parent, commit, 0));
+	cl_git_pass(git_commit_tree(&parenttree, parent));
+
+	/* Run the diff */
+	/*diffopts.context_lines = 0;*/
+	cl_git_pass(git_diff_tree_to_tree(&diff, g_repo, parenttree, committree, &diffopts));
+
+	/* Run the similarity detection */
+	/*findopts.flags = GIT_DIFF_FIND_ALL;*/
+	cl_git_pass(git_diff_find_similar(diff, &findopts));
+
+	git_tree_free(committree);
+	git_tree_free(parenttree);
+	git_commit_free(commit);
+	git_commit_free(parent);
+	git_diff_list_free(diff);
+}
+
+void test_diff_tree__segfaults(void)
+{
+	cl_git_pass(git_repository_open(&g_repo, cl_fixture("blametest.git")));
+	diff_to_parent_tree("63d671e");
+	git_repository_free(g_repo);
+
+	cl_git_pass(git_repository_open(&g_repo, cl_fixture("../..")));
+	diff_to_parent_tree("41fb1ca");
+	git_repository_free(g_repo);
+}
