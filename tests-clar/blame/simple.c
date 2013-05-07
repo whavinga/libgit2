@@ -26,15 +26,14 @@ static void check_blame_hunk_index(git_repository *repo, git_blame *blame, int i
 void test_blame_simple__trivial_testrepo(void)
 {
 	git_blame *blame = NULL;
-	git_repository *repo = cl_git_sandbox_init("testrepo");
+	git_repository *repo;
+	cl_git_pass(git_repository_open(&repo, cl_fixture("testrepo/.gitted")));
 	cl_git_pass(git_blame_file(&blame, repo, "branch_file.txt", NULL));
 
 	cl_assert_equal_i(2, git_blame_get_hunk_count(blame));
 	check_blame_hunk_index(repo, blame, 0, 1, 1, "c47800c7");
 	check_blame_hunk_index(repo, blame, 1, 2, 1, "a65fedf3");
 	git_blame_free(blame);
-
-	cl_git_sandbox_cleanup();
 }
 
 /*
@@ -58,7 +57,8 @@ void test_blame_simple__trivial_testrepo(void)
 void test_blame_simple__trivial_blamerepo(void)
 {
 	git_blame *blame = NULL;
-	git_repository *repo = cl_git_sandbox_init("blametest.git");
+	git_repository *repo;
+	cl_git_pass(git_repository_open(&repo, cl_fixture("blametest.git")));
 	cl_git_pass(git_blame_file(&blame, repo, "b.txt", NULL));
 
 	cl_assert_equal_i(4, git_blame_get_hunk_count(blame));
@@ -67,8 +67,6 @@ void test_blame_simple__trivial_blamerepo(void)
 	check_blame_hunk_index(repo, blame, 2,  6, 5, "63d671eb");
 	check_blame_hunk_index(repo, blame, 3, 11, 5, "aa06ecca");
 	git_blame_free(blame);
-
-	cl_git_sandbox_cleanup();
 }
 
 
