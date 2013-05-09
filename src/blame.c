@@ -388,6 +388,7 @@ static int trivial_line_cb(
 	void *payload)
 {
 	git_blame *blame = (git_blame*)payload;
+	git_blame_hunk *curhunk = blame->current_hunk;
 	if (!blame->trivial_file_match) return 0;
 
 #ifdef DO_DEBUG
@@ -404,8 +405,10 @@ static int trivial_line_cb(
 			blame->current_diff_line,
 			range->new_start + range->new_lines); */
 
-	/* End of hunk? Close it off and claim it */
-	if (blame->current_diff_line >= (size_t)(range->new_start + range->new_lines - 1))
+	/* End of blame hunk or diff hunk? Close it off and claim it */
+	if ((blame->current_diff_line >= (size_t)(range->new_start + range->new_lines - 1)) ||
+	    (curhunk && (blame->current_blame_line >=
+	         (size_t)(curhunk->final_start_line_number + curhunk->lines_in_hunk - 1))))
 	{
 		close_and_claim_current_hunk(blame, delta->old_file.path);
 	}
