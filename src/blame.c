@@ -65,7 +65,7 @@ static int paths_duplicate(void **a, void *b) { GIT_UNUSED(a); GIT_UNUSED(b); re
 static void add_if_not_present(git_vector *v, const char *value)
 {
 	DEBUGF("&& now watching %s\n", value);
-	git_vector_insert_sorted(v, (void*)value, paths_duplicate);
+	git_vector_insert_sorted(v, (void*)git__strdup(value), paths_duplicate);
 }
 
 git_blame* git_blame__alloc(
@@ -245,7 +245,11 @@ static int trivial_file_cb(
 	GIT_UNUSED(progress);
 
 	/* Trivial blame only cares about the original file name */
-	blame->trivial_file_match = (0 == git__strcmp(delta->new_file.path, blame->path));
+	blame->trivial_file_match = !git_vector_search(NULL, &blame->paths, delta->new_file.path); // (0 == git__strcmp(delta->new_file.path, blame->path));
+
+	/* File renames should be followed */
+	if (blame->trivial_file_match)
+		add_if_not_present(&blame->paths, delta->old_file.path);
 
 	return 0;
 }
@@ -264,7 +268,6 @@ static int trivial_hunk_cb(
 	GIT_UNUSED(header);
 	GIT_UNUSED(header_len);
 
-	add_if_not_present(&blame->paths, delta->old_file.path);
 	if (git__strcmp(blame->path, delta->old_file.path)) {
 		DEBUGF("===> Now tracking %s through %s\n", blame->path, delta->old_file.path);
 	}
