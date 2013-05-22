@@ -72,12 +72,12 @@ void test_blame_simple__trivial_blamerepo(void)
 
 /*
  * $ git blame -s 359fc2d -- include/git2.h
- * d12299fe src/git.h       1) /
+ * d12299fe src/git.h       1) / *
  * 359fc2d2 include/git2.h  2)  * Copyright (C) the libgit2 contributors. All rights reserved.
  * d12299fe src/git.h       3)  *
  * bb742ede include/git2.h  4)  * This file is part of libgit2, distributed under the GNU GPL v2 with
  * bb742ede include/git2.h  5)  * a Linking Exception. For full terms see the included COPYING file.
- * d12299fe src/git.h       6)  /
+ * d12299fe src/git.h       6)  * /
  * d12299fe src/git.h       7) 
  * d12299fe src/git.h       8) #ifndef INCLUDE_git_git_h__
  * d12299fe src/git.h       9) #define INCLUDE_git_git_h__
@@ -148,11 +148,56 @@ void test_blame_simple__trivial_libgit2(void)
 
 	cl_git_pass(git_blame_file(&blame, repo, "include/git2.h", &opts));
 
-	check_blame_hunk_index(repo, blame, 0,  1, 1, "d12299fe");
-	check_blame_hunk_index(repo, blame, 0,  2, 1, "359fc2d2");
-	check_blame_hunk_index(repo, blame, 0,  3, 1, "d12299fe");
-	check_blame_hunk_index(repo, blame, 0,  4, 2, "bb742ede");
-	check_blame_hunk_index(repo, blame, 0,  6, 5, "d12299fe");
+	check_blame_hunk_index(repo, blame,  0,  1, 1, "d12299fe");
+	check_blame_hunk_index(repo, blame,  1,  2, 1, "359fc2d2");
+	check_blame_hunk_index(repo, blame,  2,  3, 1, "d12299fe");
+	check_blame_hunk_index(repo, blame,  3,  4, 2, "bb742ede");
+	check_blame_hunk_index(repo, blame,  4,  6, 5, "d12299fe");
+	check_blame_hunk_index(repo, blame,  5, 11, 1, "96fab093");
+	check_blame_hunk_index(repo, blame,  6, 12, 1, "9d1dcca2");
+	check_blame_hunk_index(repo, blame,  7, 13, 1, "44908fe7");
+	check_blame_hunk_index(repo, blame,  8, 14, 1, "a15c550d");
+	check_blame_hunk_index(repo, blame,  9, 15, 1, "44908fe7");
+	check_blame_hunk_index(repo, blame, 10, 16, 1, "d12299fe");
+	check_blame_hunk_index(repo, blame, 11, 17, 1, "44908fe7");
+	check_blame_hunk_index(repo, blame, 12, 18, 1, "d12299fe");
+	check_blame_hunk_index(repo, blame, 13, 19, 1, "44908fe7");
+	check_blame_hunk_index(repo, blame, 14, 20, 1, "638c2ca4");
+	check_blame_hunk_index(repo, blame, 15, 21, 1, "44908fe7");
+	check_blame_hunk_index(repo, blame, 16, 22, 1, "d12299fe");
+	check_blame_hunk_index(repo, blame, 17, 23, 2, "44908fe7");
+	check_blame_hunk_index(repo, blame, 18, 25, 1, "bf787bd8");
+	check_blame_hunk_index(repo, blame, 19, 26, 1, "0984c876");
+	check_blame_hunk_index(repo, blame, 20, 27, 1, "2f8a8ab2");
+	check_blame_hunk_index(repo, blame, 21, 28, 1, "27df4275");
+	check_blame_hunk_index(repo, blame, 22, 29, 1, "a346992f");
+	check_blame_hunk_index(repo, blame, 23, 30, 1, "d12299fe");
+	check_blame_hunk_index(repo, blame, 24, 31, 5, "44908fe7");
+	check_blame_hunk_index(repo, blame, 25, 36, 1, "65b09b1d");
+	check_blame_hunk_index(repo, blame, 26, 37, 1, "d12299fe");
+	check_blame_hunk_index(repo, blame, 27, 38, 1, "44908fe7");
+	check_blame_hunk_index(repo, blame, 28, 39, 1, "5d4cd003");
+	check_blame_hunk_index(repo, blame, 29, 40, 1, "41fb1ca0");
+	check_blame_hunk_index(repo, blame, 30, 41, 1, "2dc31040");
+	check_blame_hunk_index(repo, blame, 31, 42, 1, "764df57e");
+	check_blame_hunk_index(repo, blame, 32, 43, 1, "5280f4e6");
+	check_blame_hunk_index(repo, blame, 33, 44, 1, "613d5eb9");
+	check_blame_hunk_index(repo, blame, 34, 45, 1, "d12299fe");
+	check_blame_hunk_index(repo, blame, 34, 46, 1, "111ee3fe");
+	check_blame_hunk_index(repo, blame, 34, 47, 1, "f004c4a8");
+	check_blame_hunk_index(repo, blame, 34, 48, 1, "111ee3fe");
+	check_blame_hunk_index(repo, blame, 34, 49, 1, "9c82357b");
+	check_blame_hunk_index(repo, blame, 34, 50, 1, "d6258deb");
+	check_blame_hunk_index(repo, blame, 34, 51, 1, "b311e313");
+	check_blame_hunk_index(repo, blame, 34, 52, 1, "3412391d");
+	check_blame_hunk_index(repo, blame, 34, 53, 1, "bfc9ca59");
+	check_blame_hunk_index(repo, blame, 34, 54, 1, "bf477ed4");
+	check_blame_hunk_index(repo, blame, 34, 55, 1, "edebceff");
+	check_blame_hunk_index(repo, blame, 34, 56, 1, "743a4b3b");
+	check_blame_hunk_index(repo, blame, 34, 57, 1, "0a32dca5");
+	check_blame_hunk_index(repo, blame, 34, 58, 1, "590fb68b");
+	check_blame_hunk_index(repo, blame, 34, 59, 1, "bf477ed4");
+	check_blame_hunk_index(repo, blame, 34, 60, 1, "d12299fe");
 
 	git_blame_free(blame);
 	git_repository_free(repo);

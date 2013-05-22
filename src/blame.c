@@ -208,19 +208,18 @@ static void dump_hunks(git_blame *blame)
 	DEBUGF("\n");
 
 	git_vector_foreach(&blame->hunks, i, hunk) {
-		git_oid_fmt(str, &hunk->final_commit_id);
-		DEBUGF("CLAIMED: %d-%d (orig %d in %s) %s\n",
+		git_oid_tostr(str, 8, &hunk->final_commit_id);
+		DEBUGF("CLAIMED: %2d-%2d (orig %2d) %s (from %s)\n",
 				hunk->final_start_line_number,
 				hunk->final_start_line_number + hunk->lines_in_hunk - 1,
 				hunk->orig_start_line_number,
-				hunk->orig_path,
-				str);
+				str,
+				hunk->orig_path);
 	}
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
-		DEBUGF("UNCLAIMED: %d-%d (orig %d)\n",
+		DEBUGF("UNCLAIMED: %d-%d\n",
 				hunk->final_start_line_number,
-				hunk->final_start_line_number + hunk->lines_in_hunk - 1,
-				hunk->orig_start_line_number);
+				hunk->final_start_line_number + hunk->lines_in_hunk - 1);
 	}
 }
 
@@ -316,6 +315,29 @@ static git_blame_hunk* split_current_hunk(git_blame *blame, size_t at_line, bool
 	return return_new ? nh : hunk;
 }
 
+static void claim_hunk(git_blame *blame, git_blame_hunk *hunk, const char *orig_path)
+{
+	size_t i;
+
+	{
+		char str[41]={0};
+		git_oid_tostr(str, 8, &blame->current_commit);
+		DEBUGF("Claiming hunk for %s\n", str);
+	}
+
+	if (!git_vector_search2(&i, &blame->unclaimed_hunks, ptrs_equal_cmp, hunk)) {
+		git_vector_remove(&blame->unclaimed_hunks, i);
+	}
+
+	git_oid_cpy(&hunk->final_commit_id, &blame->current_commit);
+	git_oid_cpy(&hunk->orig_commit_id, &blame->current_commit);
+	hunk->orig_path = git__strdup(orig_path);
+
+	git_vector_insert(&blame->hunks, hunk);
+	blame->current_hunk = NULL;
+	dump_hunks(blame);
+}
+
 static void close_and_claim_current_hunk(git_blame *blame, const char *orig_path)
 {
 	size_t i;
@@ -347,11 +369,18 @@ static void close_and_claim_current_hunk(git_blame *blame, const char *orig_path
 static void match_line(git_blame *blame, const char *line, size_t len, const char *orig_path)
 {
 	git_blame_hunk *hunk = blame->current_hunk;
+	const char *raw = raw_line(blame, blame->current_blame_line);
 	size_t i, j;
 
 	/* First, try the current hunk's current line. */
-	if (hunk && !memcmp(raw_line(blame, blame->current_blame_line), line, len)) {
-		/*DEBUGF("•\n");*/
+	if (hunk && !memcmp(raw, line, len)) {
+		DEBUGF("•\n");
+		return;
+	}
+
+	/* Blank lines shouldn't be searched for too hard */
+	if (len == 1) {
+		DEBUGF("Blank line, giving up\n");
 		return;
 	}
 
@@ -361,10 +390,11 @@ static void match_line(git_blame *blame, const char *line, size_t len, const cha
 		     j < (size_t)hunk->final_start_line_number + hunk->lines_in_hunk;
 		     j++)
 		{
+			DEBUGF("Trying line %zu\n", j);
 			if (!memcmp(raw_line(blame, j), line, len)) {
 				close_and_claim_current_hunk(blame, orig_path);
-				
-				/*DEBUGF("matched at line %zu (%p)\n", j, hunk);*/
+
+				DEBUGF("matched at line %zu\n", j);
 				blame->current_hunk = hunk;
 				blame->current_blame_line = j;
 				blame->current_hunk = split_current_hunk(blame, j, true);
@@ -375,8 +405,8 @@ static void match_line(git_blame *blame, const char *line, size_t len, const cha
 	}
 
 	/* If we get this far, we didn't find a matching line. */
-//	DEBUGF("***Couldn't find '%s' anywhere!\n", line);
-	blame->current_hunk = NULL;
+	DEBUGF("***Couldn't find string anywhere!\n");
+	close_and_claim_current_hunk(blame, orig_path);
 }
 
 static int trivial_line_cb(
@@ -435,9 +465,9 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 
 	while (!(error = git_revwalk_next(&oid, walk))) {
 		git_commit *commit = NULL,
-					  *parent = NULL;
+		           *parent = NULL;
 		git_tree *committree = NULL,
-					*parenttree = NULL;
+		         *parenttree = NULL;
 		git_diff_list *diff = NULL;
 		git_diff_options diffopts = GIT_DIFF_OPTIONS_INIT;
 		git_diff_find_options diff_find_opts = GIT_DIFF_FIND_OPTIONS_INIT;
@@ -446,7 +476,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 #ifdef DO_DEBUG
 		{
 			char str[41] = {0};
-			git_oid_fmt(str, &oid);
+			git_oid_tostr(str, 8, &oid);
 			DEBUGF("Rev %s\n", str);
 		}
 #endif
@@ -497,8 +527,6 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		if ((error = trivial_match(diff, blame)) < 0)
 			goto cleanup;
 
-		git_vector_sort(&blame->hunks);
-
 cleanup:
 		git_tree_free(committree);
 		git_tree_free(parenttree);
@@ -508,6 +536,18 @@ cleanup:
 		if (error != 0) break;
 	}
 
+
+	/* Attribute dangling hunks to oldest commit in the range */
+	{
+		size_t i;
+		git_blame_hunk *hunk;
+		DEBUGF("Claiming dangling hunks\n");
+		git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
+			claim_hunk(blame, hunk, blame->path);
+		}
+	}
+
+	git_vector_sort(&blame->hunks);
 	dump_hunks(blame);
 
 	if (error == GIT_ITEROVER)
