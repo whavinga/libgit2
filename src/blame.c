@@ -390,7 +390,6 @@ static void match_line(git_blame *blame, const char *line, size_t len, const cha
 		     j < (size_t)hunk->final_start_line_number + hunk->lines_in_hunk;
 		     j++)
 		{
-			DEBUGF("Trying line %zu\n", j);
 			if (!memcmp(raw_line(blame, j), line, len)) {
 				close_and_claim_current_hunk(blame, orig_path);
 

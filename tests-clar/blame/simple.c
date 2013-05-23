@@ -6,6 +6,7 @@
 static void check_blame_hunk_index(git_repository *repo, git_blame *blame, int idx, int start_line, int len, const char *commit_id)
 {
 	git_object *obj;
+	char expected[41] = {0}, actual[41] = {0};
 	const git_blame_hunk *hunk = git_blame_get_hunk_byindex(blame, idx);
 	cl_assert(hunk);
 
@@ -14,7 +15,15 @@ static void check_blame_hunk_index(git_repository *repo, git_blame *blame, int i
 	cl_assert_equal_i(hunk->final_start_line_number, start_line);
 	cl_assert_equal_i(hunk->lines_in_hunk, len);
 
+	git_oid_fmt(expected, git_object_id(obj));
+	git_oid_fmt(actual, &hunk->final_commit_id);
+	if (strcmp(expected, actual)) {
+		actual[9] = expected[9] = '\0';
+		printf("Hunk %d (line %d +%d) has mismatched original id (got %s, expected %s)\n",
+				idx, hunk->final_start_line_number, hunk->lines_in_hunk, actual, expected);
+	}
 	cl_assert_equal_i(0, git_oid_cmp(&hunk->final_commit_id, git_object_id(obj)));
+
 	git_object_free(obj);
 }
 
