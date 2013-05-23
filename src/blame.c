@@ -539,10 +539,9 @@ cleanup:
 
 	/* Attribute dangling hunks to oldest commit in the range */
 	{
-		size_t i;
-		git_blame_hunk *hunk;
 		DEBUGF("Claiming dangling hunks\n");
-		git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
+		while (blame->unclaimed_hunks.length > 0) {
+			git_blame_hunk *hunk = (git_blame_hunk*)git_vector_get(&blame->unclaimed_hunks, 0);
 			claim_hunk(blame, hunk, blame->path);
 		}
 	}
