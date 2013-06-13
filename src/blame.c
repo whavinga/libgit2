@@ -208,7 +208,7 @@ static void dump_hunks(git_blame *blame)
 	DEBUGF("\n");
 
 	git_vector_foreach(&blame->hunks, i, hunk) {
-		git_oid_tostr(str, 8, &hunk->final_commit_id);
+		git_oid_tostr(str, 9, &hunk->final_commit_id);
 		DEBUGF("CLAIMED: %2d-%2d (orig %2d) %s (from %s)\n",
 				hunk->final_start_line_number,
 				hunk->final_start_line_number + hunk->lines_in_hunk - 1,
@@ -321,7 +321,7 @@ static void claim_hunk(git_blame *blame, git_blame_hunk *hunk, const char *orig_
 
 	{
 		char str[41]={0};
-		git_oid_tostr(str, 8, &blame->current_commit);
+		git_oid_tostr(str, 9, &blame->current_commit);
 		DEBUGF("Claiming hunk for %s\n", str);
 	}
 
@@ -475,7 +475,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 #ifdef DO_DEBUG
 		{
 			char str[41] = {0};
-			git_oid_tostr(str, 8, &oid);
+			git_oid_tostr(str, 9, &oid);
 			DEBUGF("Rev %s\n", str);
 		}
 #endif
