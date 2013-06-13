@@ -429,7 +429,7 @@ static int trivial_line_cb(
 #endif
 
 	if (line_origin == GIT_DIFF_LINE_ADDITION)
-		match_line(blame, content, content_len, delta->old_file.path);
+		match_line(blame, content, content_len, delta->new_file.path);
 	/* DEBUGF("(done with line %zu of %d)\n", 
 			blame->current_diff_line,
 			range->new_start + range->new_lines); */
@@ -439,7 +439,7 @@ static int trivial_line_cb(
 	    (curhunk && (blame->current_blame_line >=
 	         (size_t)(curhunk->final_start_line_number + curhunk->lines_in_hunk - 1))))
 	{
-		close_and_claim_current_hunk(blame, delta->old_file.path);
+		close_and_claim_current_hunk(blame, delta->new_file.path);
 	}
 
 	if (line_origin == GIT_DIFF_LINE_ADDITION) {
