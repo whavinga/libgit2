@@ -14,7 +14,7 @@
 #include "util.h"
 #include "repository.h"
 
-#if 1
+#if 0
 #define DO_DEBUG
 #define DEBUGF(...) printf(__VA_ARGS__)
 #else
@@ -52,6 +52,14 @@ static git_blame_hunk* new_hunk(uint16_t start, uint16_t lines, uint16_t orig_st
 	hunk->orig_path = git__strdup(path);
 
 	return hunk;
+}
+
+static git_blame_hunk* hunk_dup(git_blame_hunk *hunk)
+{
+	git_blame_hunk *newhunk = new_hunk(hunk->final_start_line_number, hunk->lines_in_hunk, hunk->orig_start_line_number, hunk->orig_path);
+	git_oid_cpy(&newhunk->orig_commit_id, &hunk->orig_commit_id);
+	git_oid_cpy(&newhunk->final_commit_id, &hunk->final_commit_id);
+	return newhunk;
 }
 
 static void free_hunk(git_blame_hunk *hunk)
@@ -626,13 +634,18 @@ on_error:
 	return error;
 }
 
-static int buffer_file_cb(
-	const git_diff_delta *delta,
-	float progress,
-	void *payload)
+static void shift_hunks_by(git_blame *blame, size_t start_line, size_t shift_by)
 {
-	DEBUGF("FILE %s\n", delta->new_file.path);
-	return 0;
+	size_t i;
+
+	if (!git_vector_bsearch2( &i, &blame->hunks, hunk_byline_search_cmp, &start_line)) {
+		/* TODO: split hunk if necessary */
+		for (; i < blame->hunks.length; i++) {
+			git_blame_hunk *hunk = (git_blame_hunk*)blame->hunks.contents[i];
+			hunk->final_start_line_number += shift_by;
+			DEBUGF("Shifting hunk %d by %d lines to %d\n", i, shift_by, hunk->final_start_line_number);
+		}
+	}
 }
 
 static int buffer_hunk_cb(
@@ -642,11 +655,24 @@ static int buffer_hunk_cb(
 	size_t header_len,
 	void *payload)
 {
-	DEBUGF("  HUNK %s (%d-%d) <- %s (%d-%d)\n",
-			delta->new_file.path,
-			range->new_start, range->new_start + max(0, range->new_lines - 1),
-			delta->old_file.path,
-			range->old_start, range->old_start + max(0, range->old_lines - 1));
+	git_blame *blame = (git_blame*)payload;
+
+	GIT_UNUSED(delta);
+	GIT_UNUSED(header);
+	GIT_UNUSED(header_len);
+
+	DEBUGF("  HUNK (%d +%d) <- (%d +%d), added %d\n",
+			range->new_start, range->new_lines - 1,
+			range->old_start, range->old_lines - 1,
+			range->new_lines);
+
+	if (range->new_lines > 0) {
+		shift_hunks_by(blame, range->new_start, range->new_lines);
+		git_vector_insert_sorted(&blame->hunks,
+				new_hunk(range->new_start, range->new_lines, range->new_start, blame->path),
+				NULL);
+	}
+
 	return 0;
 }
 
@@ -679,6 +705,8 @@ int git_blame_buffer(
 {
 	git_blame *blame;
 	git_diff_options diffopts = GIT_DIFF_OPTIONS_INIT;
+	size_t i;
+	git_blame_hunk *hunk;
 
 	diffopts.context_lines = 0;
 
@@ -687,10 +715,15 @@ int git_blame_buffer(
 
 	blame = git_blame__alloc(reference->repository, reference->options, reference->path);
 
+	/* Duplicate all of the hunk structures in the reference blame */
+	git_vector_foreach(&reference->hunks, i, hunk) {
+		git_vector_insert(&blame->hunks, hunk_dup(hunk));
+	}
+
 	/* Diff to the reference blob */
 	DEBUGF("\n---------------\nComparing to '%s' (%d bytes)\n", buffer, buffer_len);
 	git_diff_blob_to_buffer(reference->final_blob, buffer, buffer_len,
-			&diffopts, buffer_file_cb, buffer_hunk_cb, NULL, blame);
+			&diffopts, NULL, buffer_hunk_cb, buffer_line_cb, blame);
 
 	/* Insert new hunks corresponding to diff hunks, adjusting those that come
 	 * after */
