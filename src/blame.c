@@ -209,17 +209,17 @@ static void dump_hunks(git_blame *blame)
 
 	git_vector_foreach(&blame->hunks, i, hunk) {
 		git_oid_tostr(str, 9, &hunk->final_commit_id);
-		DEBUGF("CLAIMED: %2d-%2d (orig %2d) %s (from %s)\n",
+		DEBUGF("CLAIMED: %2d +%d (orig %2d) %s (from %s)\n",
 				hunk->final_start_line_number,
-				hunk->final_start_line_number + hunk->lines_in_hunk - 1,
+				hunk->lines_in_hunk - 1,
 				hunk->orig_start_line_number,
 				str,
 				hunk->orig_path);
 	}
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
-		DEBUGF("UNCLAIMED: %d-%d\n",
+		DEBUGF("UNCLAIMED: %d +%d\n",
 				hunk->final_start_line_number,
-				hunk->final_start_line_number + hunk->lines_in_hunk - 1);
+				hunk->lines_in_hunk - 1);
 	}
 }
 
@@ -311,7 +311,7 @@ static git_blame_hunk* split_current_hunk(git_blame *blame, size_t at_line, bool
 	DEBUGF("Splitting hunk at line %zu (+%zu)\n", at_line, new_line_count);
 	nh = new_hunk(at_line, new_line_count, at_line, hunk->orig_path);
 	hunk->lines_in_hunk -= (new_line_count);
-	git_vector_insert(&blame->unclaimed_hunks, nh);
+	git_vector_insert_sorted(&blame->unclaimed_hunks, nh, NULL);
 	return return_new ? nh : hunk;
 }
 
@@ -501,6 +501,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		diffopts.context_lines = 0;
 
 		/* Check to see if files we're interested in have changed */
+		/* TODO: just compare the ids in the tree entries */
 		diffopts.pathspec.count = blame->paths.length;
 		diffopts.pathspec.strings = (char**)blame->paths.contents;
 		if ((error = git_diff_tree_to_tree(&diff, blame->repository, parenttree, committree, &diffopts)) < 0)
