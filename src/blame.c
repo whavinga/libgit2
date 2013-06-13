@@ -14,7 +14,7 @@
 #include "util.h"
 #include "repository.h"
 
-#if 0
+#if 1
 #define DO_DEBUG
 #define DEBUGF(...) printf(__VA_ARGS__)
 #else
@@ -501,7 +501,6 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		diffopts.context_lines = 0;
 
 		/* Check to see if files we're interested in have changed */
-		/* TODO: just compare the ids in the tree entries */
 		diffopts.pathspec.count = blame->paths.length;
 		diffopts.pathspec.strings = (char**)blame->paths.contents;
 		if ((error = git_diff_tree_to_tree(&diff, blame->repository, parenttree, committree, &diffopts)) < 0)
@@ -627,6 +626,51 @@ on_error:
 	return error;
 }
 
+static int buffer_file_cb(
+	const git_diff_delta *delta,
+	float progress,
+	void *payload)
+{
+	DEBUGF("FILE %s\n", delta->new_file.path);
+	return 0;
+}
+
+static int buffer_hunk_cb(
+	const git_diff_delta *delta,
+	const git_diff_range *range,
+	const char *header,
+	size_t header_len,
+	void *payload)
+{
+	DEBUGF("  HUNK %s (%d-%d) <- %s (%d-%d)\n",
+			delta->new_file.path,
+			range->new_start, range->new_start + max(0, range->new_lines - 1),
+			delta->old_file.path,
+			range->old_start, range->old_start + max(0, range->old_lines - 1));
+	return 0;
+}
+
+static int buffer_line_cb(
+	const git_diff_delta *delta,
+	const git_diff_range *range,
+	char line_origin,
+	const char *content,
+	size_t content_len,
+	void *payload)
+{
+	git_blame *blame = (git_blame*)payload;
+
+#ifdef DO_DEBUG
+	{
+		char *str = git__substrdup(content, content_len);
+		DEBUGF("    %c %zu %s", line_origin, blame->current_diff_line, str);
+		git__free(str);
+	}
+#endif
+
+	return 0;
+}
+
 int git_blame_buffer(
 		git_blame **out,
 		git_blame *reference,
@@ -634,13 +678,22 @@ int git_blame_buffer(
 		size_t buffer_len)
 {
 	git_blame *blame;
+	git_diff_options diffopts = GIT_DIFF_OPTIONS_INIT;
+
+	diffopts.context_lines = 0;
 
 	if (!out || !reference || !buffer || !buffer_len)
 		return -1;
 
 	blame = git_blame__alloc(reference->repository, reference->options, reference->path);
 
-	/* TODO */
+	/* Diff to the reference blob */
+	DEBUGF("\n---------------\nComparing to '%s' (%d bytes)\n", buffer, buffer_len);
+	git_diff_blob_to_buffer(reference->final_blob, buffer, buffer_len,
+			&diffopts, buffer_file_cb, buffer_hunk_cb, NULL, blame);
+
+	/* Insert new hunks corresponding to diff hunks, adjusting those that come
+	 * after */
 
 	*out = blame;
 	return 0;
