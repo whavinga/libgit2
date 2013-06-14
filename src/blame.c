@@ -722,7 +722,7 @@ int git_blame_buffer(
 	}
 
 	/* Diff to the reference blob */
-	DEBUGF("\n---------------\nComparing to '%s' (%d bytes)\n", buffer, buffer_len);
+	DEBUGF("\n---------------\nComparing (%d bytes) to:\n%s\n\n", buffer_len, buffer);
 	git_diff_blob_to_buffer(reference->final_blob, buffer, buffer_len,
 			&diffopts, NULL, buffer_hunk_cb, buffer_line_cb, blame);
 
