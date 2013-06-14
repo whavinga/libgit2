@@ -124,6 +124,10 @@ void test_blame_simple__trivial_libgit2(void)
 
 	cl_git_pass(git_repository_open(&repo, cl_fixture("../..")));
 
+	/* This test can't work on a shallow clone */
+	if (git_repository_is_shallow(repo))
+		return;
+
 	cl_git_pass(git_revparse_single(&obj, repo, "359fc2d"));
 	git_oid_cpy(&opts.newest_commit, git_object_id(obj));
 	git_object_free(obj);

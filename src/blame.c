@@ -11,6 +11,7 @@
 #include "git2/revwalk.h"
 #include "git2/tree.h"
 #include "git2/diff.h"
+#include "git2/blob.h"
 #include "util.h"
 #include "repository.h"
 
@@ -478,7 +479,6 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		git_diff_list *diff = NULL;
 		git_diff_options diffopts = GIT_DIFF_OPTIONS_INIT;
 		git_diff_find_options diff_find_opts = GIT_DIFF_FIND_OPTIONS_INIT;
-		char *paths[1];
 
 #ifdef DO_DEBUG
 		{
@@ -523,6 +523,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 
 		/* Let diff find file moves */
 		diff_find_opts.flags =
+			GIT_DIFF_FIND_AND_BREAK_REWRITES |
 			GIT_DIFF_FIND_RENAMES_FROM_REWRITES |
 			GIT_DIFF_FIND_RENAMES;
 		if ((error = git_diff_find_similar(diff, &diff_find_opts)) < 0)

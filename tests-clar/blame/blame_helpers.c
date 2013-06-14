@@ -17,7 +17,6 @@ void hunk_message(size_t idx, const git_blame_hunk *hunk, const char *fmt, ...)
 void check_blame_hunk_index(git_repository *repo, git_blame *blame, int idx,
 		int start_line, int len, const char *commit_id, const char *orig_path)
 {
-	git_object *obj;
 	char expected[41] = {0}, actual[41] = {0};
 	const git_blame_hunk *hunk = git_blame_get_hunk_byindex(blame, idx);
 	cl_assert(hunk);
@@ -25,8 +24,10 @@ void check_blame_hunk_index(git_repository *repo, git_blame *blame, int idx,
 	if (!strncmp(commit_id, "0000", 4)) {
 		strcpy(expected, "0000000000000000000000000000000000000000");
 	} else {
+		git_object *obj;
 		cl_git_pass(git_revparse_single(&obj, repo, commit_id));
 		git_oid_fmt(expected, git_object_id(obj));
+		git_object_free(obj);
 	}
 
 	if (hunk->final_start_line_number != start_line) {
@@ -52,8 +53,6 @@ void check_blame_hunk_index(git_repository *repo, git_blame *blame, int idx,
 				hunk->orig_path, orig_path);
 	}
 	cl_assert_equal_s(hunk->orig_path, orig_path);
-
-	git_object_free(obj);
 }
 
 

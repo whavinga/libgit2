@@ -569,6 +569,8 @@ void test_diff_tree__segfaults(void)
 	git_repository_free(g_repo);
 
 	cl_git_pass(git_repository_open(&g_repo, cl_fixture("../..")));
-	diff_to_parent_tree("41fb1ca");
+	if (!git_repository_is_shallow(g_repo)) {
+		diff_to_parent_tree("41fb1ca");
+	}
 	git_repository_free(g_repo);
 }
