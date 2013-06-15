@@ -155,7 +155,9 @@ GIT_EXTERN(int) git_blame_file(
 
 
 /**
- * Get blame data for a file that has been modified.
+ * Get blame data for a file that has been modified. Lines that are different
+ * between the buffer and the committed version are marked as having a zero OID
+ * for their final_commit_id.
  *
  * @param out pointer that will receive the blame object
  * @param reference output from git_blame_file for the file in question
