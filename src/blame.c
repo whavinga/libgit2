@@ -762,8 +762,8 @@ static int buffer_line_cb(
 		dump_hunks(blame);
 		DEBUGF("Trimming a line from hunk at line %zd (now %d lines)\n", blame->current_diff_line, blame->current_hunk->lines_in_hunk-1);
 		if (--(blame->current_hunk->lines_in_hunk) == 0) {
-			DEBUGF("Empty hunk, removing\n");
 			size_t i;
+			DEBUGF("Empty hunk, removing\n");
 			if (!git_vector_search2(&i, &blame->hunks, ptrs_equal_cmp, blame->current_hunk)) {
 				DEBUGF("Found hunk to remove at position %zd\n", i);
 				git_vector_remove(&blame->hunks, i);
