@@ -72,6 +72,16 @@ static int hunk_sort_cmp_by_start_line(const void *_a, const void *_b)
 	return a->final_start_line_number - b->final_start_line_number;
 }
 
+static bool line_is_at_end_of_hunk(size_t line, git_blame_hunk *hunk)
+{
+	return line >= (hunk->final_start_line_number + hunk->lines_in_hunk - 1);
+}
+
+static bool line_is_at_start_of_hunk(size_t line, git_blame_hunk *hunk)
+{
+	return line <= hunk->final_start_line_number;
+}
+
 static git_blame_hunk* new_hunk(uint16_t start, uint16_t lines, uint16_t orig_start, const char *path)
 {
 	git_blame_hunk *hunk = git__calloc(1, sizeof(git_blame_hunk));
@@ -298,8 +308,8 @@ static git_blame_hunk *split_hunk_in_vector(git_vector *vec, git_blame_hunk *hun
 	git_blame_hunk *nh;
 
 	/* Don't split if already at a boundary */
-	if (at_line <= (size_t)hunk->final_start_line_number ||
-	    at_line >= (size_t)hunk->final_start_line_number+hunk->lines_in_hunk)
+	if (line_is_at_start_of_hunk(at_line, hunk) ||
+	    line_is_at_end_of_hunk(at_line-1, hunk))
 	{
 		DEBUGF("Not splitting hunk (%zd +%zd) at line %zd\n",
 				hunk->final_start_line_number, hunk->lines_in_hunk-1, at_line);
@@ -643,16 +653,6 @@ static void shift_hunks_by(git_blame *blame, size_t start_line, size_t shift_by)
 static bool hunk_is_bufferblame(git_blame_hunk *hunk)
 {
 	return git_oid_iszero(&hunk->final_commit_id);
-}
-
-static bool line_is_at_end_of_hunk(size_t line, git_blame_hunk *hunk)
-{
-	return line == (hunk->final_start_line_number + hunk->lines_in_hunk - 1);
-}
-
-static bool line_is_at_start_of_hunk(size_t line, git_blame_hunk *hunk)
-{
-	return line == hunk->final_start_line_number;
 }
 
 static int buffer_hunk_cb(
