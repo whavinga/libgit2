@@ -336,7 +336,7 @@ static void claim_hunk(git_blame *blame, git_blame_hunk *hunk, const char *orig_
 	git_oid_cpy(&hunk->orig_commit_id, &blame->current_commit);
 	hunk->orig_path = git__strdup(orig_path);
 
-	git_vector_insert(&blame->hunks, hunk);
+	git_vector_insert_sorted(&blame->hunks, hunk, NULL);
 	blame->current_hunk = NULL;
 	dump_hunks(blame);
 }
@@ -364,7 +364,7 @@ static void close_and_claim_current_hunk(git_blame *blame, const char *orig_path
 	git_oid_cpy(&hunk->orig_commit_id, &blame->current_commit);
 	hunk->orig_path = git__strdup(orig_path);
 
-	git_vector_insert(&blame->hunks, hunk);
+	git_vector_insert_sorted(&blame->hunks, hunk, NULL);
 	blame->current_hunk = NULL;
 	dump_hunks(blame);
 }
@@ -544,7 +544,6 @@ cleanup:
 		claim_hunk(blame, hunk, blame->path);
 	}
 
-	git_vector_sort(&blame->hunks);
 	dump_hunks(blame);
 
 	if (error == GIT_ITEROVER)
