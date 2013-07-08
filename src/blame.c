@@ -353,7 +353,6 @@ static void claim_hunk(git_blame *blame, git_blame_hunk *hunk, const char *orig_
 
 static void close_and_claim_current_hunk(git_blame *blame, const char *orig_path)
 {
-	size_t i;
 	git_blame_hunk *hunk = blame->current_hunk;
 
 	if (!hunk) {
