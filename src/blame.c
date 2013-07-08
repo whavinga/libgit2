@@ -177,7 +177,7 @@ static int index_blob_lines(git_blame *blame)
 		incomplete++; /* incomplete line at the end */
 	while (len--) {
 		if (bol) {
-			blame->line_index = realloc(blame->line_index,
+			blame->line_index = git__realloc(blame->line_index,
 					sizeof(int *) * (num + 1));
 			blame->line_index[num] = buf - final_buf;
 			bol = 0;
@@ -187,7 +187,7 @@ static int index_blob_lines(git_blame *blame)
 			bol = 1;
 		}
 	}
-	blame->line_index = realloc(blame->line_index,
+	blame->line_index = git__realloc(blame->line_index,
 			sizeof(int *) * (num + incomplete + 1));
 	blame->line_index[num + incomplete] = buf - final_buf;
 	blame->num_lines = num + incomplete;
