@@ -366,17 +366,7 @@ static void close_and_claim_current_hunk(git_blame *blame, const char *orig_path
 	/* Split this hunk if its end isn't at the current line */
 	hunk = split_hunk_in_vector(&blame->unclaimed_hunks, blame->current_hunk, blame->current_blame_line+1, false);
 
-	if (!git_vector_search2(&i, &blame->unclaimed_hunks, ptrs_equal_cmp, hunk)) {
-		git_vector_remove(&blame->unclaimed_hunks, i);
-	}
-
-	git_oid_cpy(&hunk->final_commit_id, &blame->current_commit);
-	git_oid_cpy(&hunk->orig_commit_id, &blame->current_commit);
-	hunk->orig_path = git__strdup(orig_path);
-
-	git_vector_insert_sorted(&blame->hunks, hunk, NULL);
-	blame->current_hunk = NULL;
-	dump_hunks(blame);
+	claim_hunk(blame, blame->current_hunk, orig_path);
 }
 
 static void match_line(git_blame *blame, const char *line, size_t len, const char *orig_path)
