@@ -248,10 +248,7 @@ static void normalize_options(
 
 	/* No newest_commit => HEAD */
 	if (git_oid_iszero(&out->newest_commit)) {
-		git_object *obj;
-		git_revparse_single(&obj, repo, "HEAD");
-		git_oid_cpy(&out->newest_commit, git_object_id(obj));
-		git_object_free(obj);
+		git_reference_name_to_id(&out->newest_commit, repo, "HEAD");
 	}
 }
 
