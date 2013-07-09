@@ -230,7 +230,7 @@ static void normalize_options(
 	git_blame_options dummy = GIT_BLAME_OPTIONS_INIT;
 	if (!in) in = &dummy;
 
-	memmove(out, in, sizeof(git_blame_options));
+	memcpy(out, in, sizeof(git_blame_options));
 
 	/* No newest_commit => HEAD */
 	if (git_oid_iszero(&out->newest_commit)) {
