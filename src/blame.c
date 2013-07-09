@@ -619,10 +619,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		}
 
 		/* Let diff find file moves */
-		diff_find_opts.flags =
-			GIT_DIFF_FIND_AND_BREAK_REWRITES |
-			GIT_DIFF_FIND_RENAMES_FROM_REWRITES |
-			GIT_DIFF_FIND_RENAMES;
+		diff_find_opts.flags = GIT_DIFF_FIND_RENAMES;
 		if ((error = git_diff_find_similar(diff, &diff_find_opts)) < 0)
 			goto cleanup;
 
