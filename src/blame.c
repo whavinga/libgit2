@@ -273,7 +273,7 @@ static int trivial_file_cb(
 
 	GIT_UNUSED(progress);
 
-	blame->trivial_file_match = !git_vector_search(NULL, &blame->paths, delta->new_file.path);
+	blame->trivial_file_match = !git_vector_bsearch(NULL, &blame->paths, delta->new_file.path);
 
 	/* File renames should be followed */
 	if (blame->trivial_file_match)
