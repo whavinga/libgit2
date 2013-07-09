@@ -110,9 +110,10 @@ static void free_hunk(git_blame_hunk *hunk)
 }
 
 static int paths_cmp(const void *a, const void *b) { return git__strcmp((char*)a, (char*)b); }
+static int paths_on_dup(void **old, void *new) { return -1; }
 static void add_if_not_present(git_vector *v, const char *value)
 {
-	git_vector_insert_sorted(v, (void*)git__strdup(value), NULL);
+	git_vector_insert_sorted(v, (void*)git__strdup(value), paths_on_dup);
 }
 
 git_blame* git_blame__alloc(
