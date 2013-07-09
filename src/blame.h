@@ -2,6 +2,7 @@
 #include "common.h"
 #include "vector.h"
 #include "diff.h"
+#include "array.h"
 
 struct git_blame {
 	const char *path;
@@ -14,7 +15,7 @@ struct git_blame {
 
 	git_blob *final_blob;
 	size_t num_lines;
-	int *line_index;
+	git_array_t(size_t) line_index;
 
 	git_oid current_commit;
 	size_t current_diff_line;

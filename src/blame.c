@@ -121,7 +121,7 @@ git_blame* git_blame__alloc(
 	git_blame_options opts,
 	const char *path)
 {
-	git_blame *gbr = (git_blame*)calloc(1, sizeof(git_blame));
+	git_blame *gbr = (git_blame*)git__calloc(1, sizeof(git_blame));
 	if (!gbr) {
 		giterr_set_oom();
 		return NULL;
@@ -157,6 +157,8 @@ void git_blame_free(git_blame *blame)
 		git__free(path);
 	git_vector_free(&blame->paths);
 
+	git_array_clear(blame->line_index);
+
 	git__free((void*)blame->path);
 	git_blob_free(blame->final_blob);
 	git__free(blame);
@@ -173,14 +175,15 @@ static int index_blob_lines(git_blame *blame)
 	const char *buf = final_buf;
 	git_off_t len = git_blob_rawsize(blame->final_blob);
 	int num = 0, incomplete = 0, bol = 1;
+	size_t *i;
 
 	if (len && buf[len-1] != '\n')
 		incomplete++; /* incomplete line at the end */
 	while (len--) {
 		if (bol) {
-			blame->line_index = git__realloc(blame->line_index,
-					sizeof(int *) * (num + 1));
-			blame->line_index[num] = buf - final_buf;
+			i = git_array_alloc(blame->line_index);
+			GITERR_CHECK_ALLOC(i);
+			*i = buf - final_buf;
 			bol = 0;
 		}
 		if (*buf++ == '\n') {
@@ -188,9 +191,9 @@ static int index_blob_lines(git_blame *blame)
 			bol = 1;
 		}
 	}
-	blame->line_index = git__realloc(blame->line_index,
-			sizeof(int *) * (num + incomplete + 1));
-	blame->line_index[num + incomplete] = buf - final_buf;
+	i = git_array_alloc(blame->line_index);
+	GITERR_CHECK_ALLOC(i);
+	*i = buf - final_buf;
 	blame->num_lines = num + incomplete;
 	return 0;
 }
@@ -300,7 +303,7 @@ static int trivial_hunk_cb(
 static const char* raw_line(git_blame *blame, size_t i)
 {
 	return ((const char*)git_blob_rawcontent(blame->final_blob)) +
-		blame->line_index[i-1];
+		*git_array_get(blame->line_index, i-1);
 }
 
 static git_blame_hunk *split_hunk_in_vector(git_vector *vec, git_blame_hunk *hunk, size_t at_line, bool return_new)
@@ -372,11 +375,11 @@ static void close_and_claim_current_hunk(git_blame *blame, const char *orig_path
 static void match_line(git_blame *blame, const char *line, size_t len, const char *orig_path)
 {
 	git_blame_hunk *hunk = blame->current_hunk;
-	const char *raw = raw_line(blame, blame->current_blame_line);
+	const char *raw = (blame->current_blame_line == 0 ? NULL : raw_line(blame, blame->current_blame_line));
 	size_t i, j;
 
 	/* First, try the current hunk's current line. */
-	if (hunk && !memcmp(raw, line, len)) {
+	if (hunk && raw && !memcmp(raw, line, len)) {
 		DEBUGF("•\n");
 		return;
 	}
