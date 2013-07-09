@@ -155,12 +155,17 @@ GIT_EXTERN(int) git_blame_file(
 
 
 /**
- * Get blame data for a file that has been modified. Lines that are different
- * between the buffer and the committed version are marked as having a zero OID
- * for their final_commit_id.
+ * Get blame data for a file that has been modified in memory. The `reference`
+ * parameter is a pre-calculated blame for the in-odb history of the file. This
+ * means that once a file blame is completed (which can be expensive), updating
+ * the buffer blame is very fast.
  *
- * @param out pointer that will receive the blame object
- * @param reference output from git_blame_file for the file in question
+ * Lines that differ between the buffer and the committed version are marked as
+ * having a zero OID for their final_commit_id.
+ *
+ * @param out pointer that will receive the resulting blame data
+ * @param reference cached blame from the history of the file (usually the output
+ *                  from git_blame_file)
  * @param buffer the (possibly) modified contents of the file
  * @param buffer_len number of valid bytes in the buffer
  * @return 0 on success, or an error code. (use giterr_last for information
@@ -173,7 +178,7 @@ GIT_EXTERN(int) git_blame_buffer(
 		size_t buffer_len);
 
 /**
- * Free memory allocated by git_blame.
+ * Free memory allocated by git_blame_file or git_blame_buffer.
  *
  * @param blame the blame structure to free
  */
