@@ -612,6 +612,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 
 		/* Generate a full diff between the two trees */
 		if (git_diff_num_deltas(diff) > 0) {
+			git_diff_list_free(diff);
 			diffopts.pathspec.count = 0;
 			if ((error = git_diff_tree_to_tree(&diff, blame->repository, parenttree, committree, &diffopts)) < 0)
 				goto cleanup;
