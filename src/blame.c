@@ -109,6 +109,20 @@ static void free_hunk(git_blame_hunk *hunk)
 	git__free(hunk);
 }
 
+/* Starting with the hunk that includes start_line, shift all following hunks
+ * by shift_by lines */
+static void shift_hunks_by(git_blame *blame, size_t start_line, size_t shift_by)
+{
+	size_t i;
+
+	if (!git_vector_bsearch2( &i, &blame->hunks, hunk_byline_search_cmp, &start_line)) {
+		for (; i < blame->hunks.length; i++) {
+			git_blame_hunk *hunk = (git_blame_hunk*)blame->hunks.contents[i];
+			hunk->final_start_line_number += shift_by;
+		}
+	}
+}
+
 static int paths_cmp(const void *a, const void *b) { return git__strcmp((char*)a, (char*)b); }
 static int paths_on_dup(void **old, void *new) { return -1; }
 static void add_if_not_present(git_vector *v, const char *value)
@@ -463,6 +477,93 @@ static int trivial_match(git_diff_list *diff, git_blame *blame)
 	return error;
 }
 
+/*******************************************************************************
+ * Hunk-shift matching
+ ******************************************************************************/
+
+static int hunk_shift_file_cb(
+	const git_diff_delta *delta,
+	float progress,
+	void *payload)
+{
+	git_blame *blame = (git_blame*)payload;
+	GIT_UNUSED(progress);
+
+	blame->trivial_file_match = !git_vector_search(NULL, &blame->paths, delta->new_file.path);
+
+	if (blame->trivial_file_match)
+		add_if_not_present(&blame->paths, delta->old_file.path);
+
+	return 0;
+}
+
+static int hunk_shift_hunk_cb(
+	const git_diff_delta *delta,
+	const git_diff_range *range,
+	const char *header,
+	size_t header_len,
+	void *payload)
+{
+	git_blame *blame = (git_blame*)payload;
+	if (!blame->trivial_file_match) return 0;
+
+	GIT_UNUSED(header);
+	GIT_UNUSED(header_len);
+
+	if (git__strcmp(blame->path, delta->old_file.path)) {
+		DEBUGF("===> Now tracking %s through %s\n", blame->path, delta->old_file.path);
+	}
+
+	DEBUGF("  Hunk: %s (%d +%d) <- %s (%d +%d)\n",
+			delta->new_file.path,
+			range->new_start, range->new_lines - 1,
+			delta->old_file.path,
+			range->old_start, range->old_lines - 1);
+
+	blame->current_diff_line = range->new_start;
+	return 0;
+}
+
+static int hunk_shift_line_cb(
+	const git_diff_delta *delta,
+	const git_diff_range *range,
+	char line_origin,
+	const char *content,
+	size_t content_len,
+	void *payload)
+{
+	git_blame *blame = (git_blame*)payload;
+	git_blame_hunk *curhunk = blame->current_hunk;
+	if (!blame->trivial_file_match) return 0;
+
+#ifdef DO_DEBUG
+	{
+		char *str = git__substrdup(content, content_len);
+		DEBUGF("    %c %zu %s", line_origin, blame->current_diff_line, str);
+		git__free(str);
+	}
+#endif
+
+	if (line_origin == GIT_DIFF_LINE_ADDITION) {
+		blame->current_blame_line++;
+		blame->current_diff_line++;
+	}
+
+	return 0;
+}
+
+static int hunk_shift_match(git_diff_list *diff, git_blame *blame)
+{
+	int error = git_diff_foreach(diff, hunk_shift_file_cb, hunk_shift_hunk_cb,
+			hunk_shift_line_cb, blame);
+	blame->current_hunk = NULL;
+	return error;
+}
+
+/*******************************************************************************
+ * Plumbing
+ ******************************************************************************/
+
 static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 {
 	git_oid oid;
@@ -489,8 +590,9 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 			break;
 
 		/* TODO: consider merge commits */
-		if (git_commit_parentcount(commit) > 1)
+		if (git_commit_parentcount(commit) > 1) {
 			continue;
+		}
 
 		error = git_commit_parent(&parent, commit, 0);
 		if (error != 0 && error != GIT_ENOTFOUND)
@@ -528,9 +630,15 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 
 		git_oid_cpy(&blame->current_commit, &oid);
 
+#if 0
+		/* Hunk-shift matching */
+		if ((error = hunk_shift_match(diff, blame)) < 0)
+			goto cleanup;
+#else
 		/* Trivial matching */
 		if ((error = trivial_match(diff, blame)) < 0)
 			goto cleanup;
+#endif
 
 cleanup:
 		git_tree_free(committree);
@@ -579,6 +687,9 @@ cleanup:
 	return retval;
 }
 
+/*******************************************************************************
+ * File blaming
+ ******************************************************************************/
 
 int git_blame_file(
 		git_blame **out,
@@ -630,18 +741,6 @@ on_error:
 /*******************************************************************************
  * Buffer blaming
  *******************************************************************************/
-
-static void shift_hunks_by(git_blame *blame, size_t start_line, size_t shift_by)
-{
-	size_t i;
-
-	if (!git_vector_bsearch2( &i, &blame->hunks, hunk_byline_search_cmp, &start_line)) {
-		for (; i < blame->hunks.length; i++) {
-			git_blame_hunk *hunk = (git_blame_hunk*)blame->hunks.contents[i];
-			hunk->final_start_line_number += shift_by;
-		}
-	}
-}
 
 static bool hunk_is_bufferblame(git_blame_hunk *hunk)
 {
