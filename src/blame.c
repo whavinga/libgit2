@@ -484,83 +484,12 @@ static int trivial_match(git_diff_list *diff, git_blame *blame)
  * Hunk-shift matching
  ******************************************************************************/
 
-static int hunk_shift_file_cb(
-	const git_diff_delta *delta,
-	float progress,
-	void *payload)
-{
-	git_blame *blame = (git_blame*)payload;
-	GIT_UNUSED(progress);
-
-	blame->trivial_file_match = !git_vector_search(NULL, &blame->paths, delta->new_file.path);
-
-	if (blame->trivial_file_match)
-		add_if_not_present(&blame->paths, delta->old_file.path);
-
-	return 0;
-}
-
-static int hunk_shift_hunk_cb(
-	const git_diff_delta *delta,
-	const git_diff_range *range,
-	const char *header,
-	size_t header_len,
-	void *payload)
-{
-	git_blame *blame = (git_blame*)payload;
-	if (!blame->trivial_file_match) return 0;
-
-	GIT_UNUSED(header);
-	GIT_UNUSED(header_len);
-
-	if (git__strcmp(blame->path, delta->old_file.path)) {
-		DEBUGF("===> Now tracking %s through %s\n", blame->path, delta->old_file.path);
-	}
-
-	DEBUGF("  Hunk: %s (%d +%d) <- %s (%d +%d)\n",
-			delta->new_file.path,
-			range->new_start, range->new_lines - 1,
-			delta->old_file.path,
-			range->old_start, range->old_lines - 1);
-
-	blame->current_diff_line = range->new_start;
-	return 0;
-}
-
-static int hunk_shift_line_cb(
-	const git_diff_delta *delta,
-	const git_diff_range *range,
-	char line_origin,
-	const char *content,
-	size_t content_len,
-	void *payload)
-{
-	git_blame *blame = (git_blame*)payload;
-	git_blame_hunk *curhunk = blame->current_hunk;
-	if (!blame->trivial_file_match) return 0;
-
-#ifdef DO_DEBUG
-	{
-		char *str = git__substrdup(content, content_len);
-		DEBUGF("    %c %zu %s", line_origin, blame->current_diff_line, str);
-		git__free(str);
-	}
-#endif
-
-	if (line_origin == GIT_DIFF_LINE_ADDITION) {
-		blame->current_blame_line++;
-		blame->current_diff_line++;
-	}
-
-	return 0;
-}
-
 static int hunk_shift_match(git_diff_list *diff, git_blame *blame)
 {
-	int error = git_diff_foreach(diff, hunk_shift_file_cb, hunk_shift_hunk_cb,
-			hunk_shift_line_cb, blame);
-	blame->current_hunk = NULL;
-	return error;
+	GIT_UNUSED(diff);
+	GIT_UNUSED(blame);
+
+	return 0;
 }
 
 /*******************************************************************************
