@@ -270,30 +270,6 @@ static int ptrs_equal_cmp(const void *a, const void *b) {
 		0;
 }
 
-static int trivial_hunk_cb(
-	const git_diff_delta *delta,
-	const git_diff_range *range,
-	const char *header,
-	size_t header_len,
-	void *payload)
-{
-	git_blame *blame = (git_blame*)payload;
-
-	GIT_UNUSED(delta);
-	GIT_UNUSED(header);
-	GIT_UNUSED(header_len);
-
-	DEBUGF("  Hunk: %s (%d-%d) <- %s (%d-%d)\n",
-			delta->new_file.path,
-			range->new_start, range->new_start + max(0, range->new_lines - 1),
-			delta->old_file.path,
-			range->old_start, range->old_start + max(0, range->old_lines - 1));
-
-	blame->current_diff_line = range->new_start;
-
-	return 0;
-}
-
 static const char* raw_line(git_blame *blame, size_t i)
 {
 	return ((const char*)git_blob_rawcontent(blame->final_blob)) +
@@ -408,7 +384,7 @@ static void match_line(git_blame *blame, const char *line, size_t len, const cha
 	close_and_claim_current_hunk(blame, orig_path);
 }
 
-static int trivial_line_cb(
+static int process_diff_line_trivial(
 	const git_diff_delta *delta,
 	const git_diff_range *range,
 	char line_origin,
@@ -449,7 +425,32 @@ static int trivial_line_cb(
 	return 0;
 }
 
-static int trivial_process_patch(git_diff_patch *patch, git_blame *blame)
+/*******************************************************************************
+ * Hunk-shift matching
+ ******************************************************************************/
+
+static int process_diff_line_hunk_shift(
+	const git_diff_delta *delta,
+	const git_diff_range *range,
+	char line_origin,
+	const char *content,
+	size_t content_len,
+	void *payload)
+{
+	GIT_UNUSED(delta);
+	GIT_UNUSED(range);
+	GIT_UNUSED(line_origin);
+	GIT_UNUSED(content);
+	GIT_UNUSED(content_len);
+	GIT_UNUSED(payload);
+	return 0;
+}
+
+/*******************************************************************************
+ * Plumbing
+ ******************************************************************************/
+
+static int process_patch(git_diff_patch *patch, git_blame *blame)
 {
 	int error = 0;
 	size_t i, num_hunks = git_diff_patch_num_hunks(patch);
@@ -461,9 +462,14 @@ static int trivial_process_patch(git_diff_patch *patch, git_blame *blame)
 		size_t lines, j;
 
 		if ((error = git_diff_patch_get_hunk(&range, NULL, NULL, &lines, patch, i)) < 0)
-			break;
+			goto cleanup;
 
-		trivial_hunk_cb(delta, range, NULL, 0, blame);
+		DEBUGF("  Hunk: %s (%d-%d) <- %s (%d-%d)\n",
+				delta->new_file.path,
+				range->new_start, range->new_start + max(0, range->new_lines - 1),
+				delta->old_file.path,
+				range->old_start, range->old_start + max(0, range->old_lines - 1));
+		blame->current_diff_line = range->new_start;
 
 		for (j=0; j<lines; ++j) {
 			char line_origin;
@@ -475,7 +481,12 @@ static int trivial_process_patch(git_diff_patch *patch, git_blame *blame)
 							&line_origin, &content, &content_len, &old_lineno, &new_lineno,
 							patch, i, j)) < 0)
 				goto cleanup;
-			trivial_line_cb(delta, range, line_origin, content, content_len, blame);
+
+#if 1
+			error = process_diff_line_trivial(delta, range, line_origin, content, content_len, blame);
+#else
+			error = process_diff_line_hunk_shift(delta, range, line_origin, content, content_len, blame);
+#endif
 		}
 	}
 
@@ -483,7 +494,7 @@ cleanup:
 	return error;
 }
 
-static int trivial_match(git_diff_list *diff, git_blame *blame)
+static int process_diff(git_diff_list *diff, git_blame *blame)
 {
 	int error = 0;
 	size_t i, max_i = git_diff_num_deltas(diff);
@@ -511,7 +522,7 @@ static int trivial_match(git_diff_list *diff, git_blame *blame)
 		if ((error = git_diff_get_patch(&patch, &delta, diff, i)) < 0)
 			break;
 
-		error = trivial_process_patch(patch, blame);
+		error = process_patch(patch, blame);
 		git_diff_patch_free(patch);
 		if (error < 0)
 			break;
@@ -520,22 +531,6 @@ static int trivial_match(git_diff_list *diff, git_blame *blame)
 	blame->current_hunk = NULL;
 	return error;
 }
-
-/*******************************************************************************
- * Hunk-shift matching
- ******************************************************************************/
-
-static int hunk_shift_match(git_diff_list *diff, git_blame *blame)
-{
-	GIT_UNUSED(diff);
-	GIT_UNUSED(blame);
-
-	return 0;
-}
-
-/*******************************************************************************
- * Plumbing
- ******************************************************************************/
 
 static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 {
@@ -601,15 +596,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 
 		git_oid_cpy(&blame->current_commit, &oid);
 
-#if 0
-		/* Hunk-shift matching */
-		if ((error = hunk_shift_match(diff, blame)) < 0)
-			goto cleanup;
-#else
-		/* Trivial matching */
-		if ((error = trivial_match(diff, blame)) < 0)
-			goto cleanup;
-#endif
+		error = process_diff(diff, blame);
 
 cleanup:
 		git_tree_free(committree);
