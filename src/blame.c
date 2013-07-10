@@ -666,9 +666,7 @@ static int load_blob(git_blame *blame, git_repository *repo, git_oid *commit_id,
 	git_object *obj = NULL;
 
 	if (((retval = git_commit_lookup(&commit, repo, commit_id)) < 0) ||
-	    ((retval = git_commit_tree(&tree, commit)) < 0) ||
-	    ((retval = git_tree_entry_bypath(&tree_entry, tree, path)) < 0) ||
-	    ((retval = git_tree_entry_to_object(&obj, repo, tree_entry)) < 0) ||
+		 ((retval = git_object_lookup_bypath(&obj, (git_object*)commit, path, GIT_OBJ_BLOB)) < 0) ||
 	    ((retval = git_object_type(obj)) != GIT_OBJ_BLOB))
 		goto cleanup;
 	blame->final_blob = (git_blob*)obj;
