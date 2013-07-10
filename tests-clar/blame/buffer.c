@@ -128,13 +128,3 @@ CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
 	check_blame_hunk_index(g_repo, g_bufferblame, 3, 7, 1, "00000000", "b.txt");
 	check_blame_hunk_index(g_repo, g_bufferblame, 4, 8, 3, "63d671eb", "b.txt");
 }
-
-void test_blame_buffer__validates_args(void)
-{
-	cl_git_fail(git_blame_buffer(NULL, NULL, NULL, 0));
-	cl_git_fail(git_blame_buffer(&g_bufferblame, NULL, NULL, 0));
-	cl_git_fail(git_blame_buffer(NULL, g_fileblame, NULL, 0));
-	cl_git_fail(git_blame_buffer(&g_bufferblame, g_fileblame, NULL, 0));
-	cl_git_fail(git_blame_buffer(&g_bufferblame, g_fileblame, "abc", 0));
-	cl_git_fail(git_blame_buffer(&g_bufferblame, g_fileblame, NULL, 10));
-}

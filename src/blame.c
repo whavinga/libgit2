@@ -697,7 +697,7 @@ int git_blame_file(
 	git_blame *blame = NULL;
 	git_revwalk *walk = NULL;
 
-	if (!out || !repo || !path) return -1;
+	assert(out && repo && path);
 	normalize_options(&normOptions, options, repo);
 
 	blame = git_blame__alloc(repo, normOptions, path);
@@ -827,8 +827,7 @@ int git_blame_buffer(
 
 	diffopts.context_lines = 0;
 
-	if (!out || !reference || !buffer || !buffer_len)
-		return -1;
+	assert(out && reference && buffer && buffer_len);
 
 	blame = git_blame__alloc(reference->repository, reference->options, reference->path);
 

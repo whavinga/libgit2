@@ -30,11 +30,11 @@ void test_object_lookupbypath__initialize(void)
 }
 void test_object_lookupbypath__cleanup(void)
 {
+	git_object_free(g_actualobject);
 	git_object_free(g_expectedobject);
 	g_expectedobject = NULL;
 	git_repository_free(g_repo);
 	g_repo = NULL;
-	git_object_free(g_actualobject);
 }
 
 void test_object_lookupbypath__gets_proper_object(void)
@@ -43,16 +43,6 @@ void test_object_lookupbypath__gets_proper_object(void)
 				"subdir/subdir_test2.txt", GIT_OBJ_BLOB));
 	cl_assert_equal_i(0, git_oid_cmp(git_object_id(g_expectedobject),
 				git_object_id(g_actualobject)));
-}
-
-void test_object_lookupbypath__checks_parameters(void)
-{
-	cl_git_fail(git_object_lookup_bypath(NULL, NULL, NULL, -1));
-	cl_git_fail(git_object_lookup_bypath(&g_actualobject, NULL, NULL, -1));
-	cl_git_fail(git_object_lookup_bypath(NULL, (git_object*)g_root_tree, NULL, -1));
-	cl_git_fail(git_object_lookup_bypath(NULL, NULL, "subdir/subdir_test2.txt", -1));
-	cl_git_fail(git_object_lookup_bypath(NULL, NULL, NULL, GIT_OBJ_BLOB));
-	cl_git_fail(git_object_lookup_bypath(&g_actualobject, (git_object*)g_root_tree, NULL, -1));
 }
 
 void test_object_lookupbypath__errors(void)
