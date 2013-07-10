@@ -747,7 +747,7 @@ GIT_EXTERN(int) git_diff_print_raw(
  * letters for your own purposes.  This function does just that.  By the
  * way, unmodified will return a space (i.e. ' ').
  *
- * @param delta_t The git_delta_t value to look up
+ * @param status The git_delta_t value to look up
  * @return The single character label for that code
  */
 GIT_EXTERN(char) git_diff_status_char(git_delta_t status);
@@ -918,7 +918,7 @@ GIT_EXTERN(int) git_diff_patch_num_lines_in_hunk(
  * @param new_lineno Line number in new file or -1 if line is deleted
  * @param patch The patch to look in
  * @param hunk_idx The index of the hunk
- * @param line_of_index The index of the line in the hunk
+ * @param line_of_hunk The index of the line in the hunk
  * @return 0 on success, <0 on failure
  */
 GIT_EXTERN(int) git_diff_patch_get_line_in_hunk(
@@ -983,7 +983,9 @@ GIT_EXTERN(int) git_diff_patch_to_str(
  * `GIT_DIFF_FORCE_TEXT` of course).
  *
  * @param old_blob Blob for old side of diff, or NULL for empty blob
+ * @param old_as_path Treat old blob as if it had this filename; can be NULL
  * @param new_blob Blob for new side of diff, or NULL for empty blob
+ * @param new_as_path Treat new blob as if it had this filename; can be NULL
  * @param options Options for diff, or NULL for default options
  * @param file_cb Callback for "file"; made once if there is a diff; can be NULL
  * @param hunk_cb Callback for each hunk in diff; can be NULL
@@ -993,7 +995,9 @@ GIT_EXTERN(int) git_diff_patch_to_str(
  */
 GIT_EXTERN(int) git_diff_blobs(
 	const git_blob *old_blob,
+	const char *old_as_path,
 	const git_blob *new_blob,
+	const char *new_as_path,
 	const git_diff_options *options,
 	git_diff_file_cb file_cb,
 	git_diff_hunk_cb hunk_cb,
@@ -1010,14 +1014,18 @@ GIT_EXTERN(int) git_diff_blobs(
  *
  * @param out The generated patch; NULL on error
  * @param old_blob Blob for old side of diff, or NULL for empty blob
+ * @param old_as_path Treat old blob as if it had this filename; can be NULL
  * @param new_blob Blob for new side of diff, or NULL for empty blob
- * @param options Options for diff, or NULL for default options
+ * @param new_as_path Treat new blob as if it had this filename; can be NULL
+ * @param opts Options for diff, or NULL for default options
  * @return 0 on success or error code < 0
  */
 GIT_EXTERN(int) git_diff_patch_from_blobs(
 	git_diff_patch **out,
 	const git_blob *old_blob,
+	const char *old_as_path,
 	const git_blob *new_blob,
+	const char *new_as_path,
 	const git_diff_options *opts);
 
 /**
@@ -1033,19 +1041,23 @@ GIT_EXTERN(int) git_diff_patch_from_blobs(
  * the reverse, with GIT_DELTA_REMOVED and blob content removed.
  *
  * @param old_blob Blob for old side of diff, or NULL for empty blob
+ * @param old_as_path Treat old blob as if it had this filename; can be NULL
  * @param buffer Raw data for new side of diff, or NULL for empty
  * @param buffer_len Length of raw data for new side of diff
+ * @param buffer_as_path Treat buffer as if it had this filename; can be NULL
  * @param options Options for diff, or NULL for default options
  * @param file_cb Callback for "file"; made once if there is a diff; can be NULL
  * @param hunk_cb Callback for each hunk in diff; can be NULL
- * @param line_cb Callback for each line in diff; can be NULL
+ * @param data_cb Callback for each line in diff; can be NULL
  * @param payload Payload passed to each callback function
  * @return 0 on success, GIT_EUSER on non-zero callback return, or error code
  */
 GIT_EXTERN(int) git_diff_blob_to_buffer(
 	const git_blob *old_blob,
+	const char *old_as_path,
 	const char *buffer,
 	size_t buffer_len,
+	const char *buffer_as_path,
 	const git_diff_options *options,
 	git_diff_file_cb file_cb,
 	git_diff_hunk_cb hunk_cb,
@@ -1062,16 +1074,20 @@ GIT_EXTERN(int) git_diff_blob_to_buffer(
  *
  * @param out The generated patch; NULL on error
  * @param old_blob Blob for old side of diff, or NULL for empty blob
+ * @param old_as_path Treat old blob as if it had this filename; can be NULL
  * @param buffer Raw data for new side of diff, or NULL for empty
  * @param buffer_len Length of raw data for new side of diff
- * @param options Options for diff, or NULL for default options
+ * @param buffer_as_path Treat buffer as if it had this filename; can be NULL
+ * @param opts Options for diff, or NULL for default options
  * @return 0 on success or error code < 0
  */
 GIT_EXTERN(int) git_diff_patch_from_blob_and_buffer(
 	git_diff_patch **out,
 	const git_blob *old_blob,
-	const char *buf,
-	size_t buflen,
+	const char *old_as_path,
+	const char *buffer,
+	size_t buffer_len,
+	const char *buffer_as_path,
 	const git_diff_options *opts);
 
 

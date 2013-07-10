@@ -119,14 +119,23 @@ on_error:
 
 static int store_refs(transport_local *t)
 {
-	unsigned int i;
+	size_t i;
+	git_remote_head *head;
 	git_strarray ref_names = {0};
 
 	assert(t);
 
-	if (git_reference_list(&ref_names, t->repo) < 0 ||
-		git_vector_init(&t->refs, ref_names.count, NULL) < 0)
+	if (git_reference_list(&ref_names, t->repo) < 0)
 		goto on_error;
+
+	/* Clear all heads we might have fetched in a previous connect */
+	git_vector_foreach(&t->refs, i, head) {
+		git__free(head->name);
+		git__free(head);
+	}
+
+	/* Clear the vector so we can reuse it */
+	git_vector_clear(&t->refs);
 
 	/* Sort the references first */
 	git__tsort((void **)ref_names.strings, ref_names.count, &git__strcmp_cb);
@@ -593,15 +602,15 @@ static void local_free(git_transport *transport)
 	size_t i;
 	git_remote_head *head;
 
-	/* Close the transport, if it's still open. */
-	local_close(transport);
-
 	git_vector_foreach(&t->refs, i, head) {
 		git__free(head->name);
 		git__free(head);
 	}
 
 	git_vector_free(&t->refs);
+
+	/* Close the transport, if it's still open. */
+	local_close(transport);
 
 	/* Free the transport */
 	git__free(t);
@@ -632,6 +641,7 @@ int git_transport_local(git_transport **out, git_remote *owner, void *param)
 	t->parent.read_flags = local_read_flags;
 	t->parent.cancel = local_cancel;
 
+	git_vector_init(&t->refs, 0, NULL);
 	t->owner = owner;
 
 	*out = (git_transport *) t;

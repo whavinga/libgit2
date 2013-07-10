@@ -178,7 +178,7 @@ GIT_EXTERN(int) git_repository_init(
  * when initializing a new repo.  Details of individual values are:
  *
  * * BARE   - Create a bare repository with no working directory.
- * * NO_REINIT - Return an EEXISTS error if the repo_path appears to
+ * * NO_REINIT - Return an GIT_EEXISTS error if the repo_path appears to
  *        already be an git repository.
  * * NO_DOTGIT_DIR - Normally a "/.git/" will be appended to the repo
  *        path for non-bare repos (if it is not already there), but
@@ -471,7 +471,7 @@ GIT_EXTERN(int) git_repository_index(git_index **out, git_repository *repo);
  * @param out Buffer to write data into or NULL to just read required size
  * @param len Length of `out` buffer in bytes
  * @param repo Repository to read prepared message from
- * @return GIT_ENOUTFOUND if no message exists, other value < 0 for other
+ * @return GIT_ENOTFOUND if no message exists, other value < 0 for other
  *         errors, or total bytes in message (may be > `len`) on success
  */
 GIT_EXTERN(int) git_repository_message(char *out, size_t len, git_repository *repo);
@@ -519,7 +519,7 @@ typedef int (*git_repository_mergehead_foreach_cb)(const git_oid *oid,
  *
  * @param repo A repository object
  * @param callback Callback function
- * @param apyload Pointer to callback data (optional)
+ * @param payload Pointer to callback data (optional)
  * @return 0 on success, GIT_ENOTFOUND, GIT_EUSER or error
  */
 GIT_EXTERN(int) git_repository_mergehead_foreach(git_repository *repo,
@@ -601,7 +601,7 @@ GIT_EXTERN(int) git_repository_set_head_detached(
  * If the HEAD is already detached and points to a Tag, the HEAD is
  * updated into making it point to the peeled Commit, and 0 is returned.
  *
- * If the HEAD is already detached and points to a non commitish, the HEAD is 
+ * If the HEAD is already detached and points to a non commitish, the HEAD is
  * unaltered, and -1 is returned.
  *
  * Otherwise, the HEAD will be detached and point to the peeled Commit.

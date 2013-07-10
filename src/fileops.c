@@ -61,9 +61,11 @@ int git_futils_creat_locked(const char *path, const mode_t mode)
 	wchar_t buf[GIT_WIN_PATH];
 
 	git__utf8_to_16(buf, GIT_WIN_PATH, path);
-	fd = _wopen(buf, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_EXCL, mode);
+	fd = _wopen(buf, O_WRONLY | O_CREAT | O_TRUNC |
+		O_EXCL | O_BINARY | O_CLOEXEC, mode);
 #else
-	fd = open(path, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY | O_EXCL, mode);
+	fd = open(path, O_WRONLY | O_CREAT | O_TRUNC |
+		O_EXCL | O_BINARY | O_CLOEXEC, mode);
 #endif
 
 	if (fd < 0) {
@@ -320,7 +322,7 @@ int git_futils_mkdir(
 	min_root_len = git_path_root(make_path.ptr);
 	if (root < min_root_len)
 		root = min_root_len;
-	while (make_path.ptr[root] == '/')
+	while (root >= 0 && make_path.ptr[root] == '/')
 		++root;
 
 	/* clip root to make_path length */
