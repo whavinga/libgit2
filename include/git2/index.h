@@ -138,6 +138,14 @@ typedef enum {
 	GIT_INDEX_ADD_CHECK_PATHSPEC = (1u << 2),
 } git_index_add_option_t;
 
+/**
+ * Match any index stage.
+ *
+ * Some index APIs take a stage to match; pass this value to match
+ * any entry matching the path regardless of stage.
+ */
+#define GIT_INDEX_STAGE_ANY -1
+
 /** @name Index File Functions
  *
  * These functions work on the index file itself.
@@ -230,6 +238,14 @@ GIT_EXTERN(int) git_index_read(git_index *index);
  * @return 0 or an error code
  */
 GIT_EXTERN(int) git_index_write(git_index *index);
+
+/**
+ * Get the full path to the index file on disk.
+ *
+ * @param index an existing index object
+ * @return path to index file or NULL for in-memory index
+ */
+GIT_EXTERN(const char *) git_index_path(git_index *index);
 
 /**
  * Read a tree into the index file with stats

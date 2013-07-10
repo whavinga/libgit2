@@ -78,7 +78,7 @@ typedef enum {
 	GIT_DIFF_IGNORE_WHITESPACE_CHANGE = (1 << 3),
 	/** Ignore whitespace at end of line */
 	GIT_DIFF_IGNORE_WHITESPACE_EOL = (1 << 4),
-	/** Exclude submodules from the diff completely */
+	/** Treat all submodules as unmodified */
 	GIT_DIFF_IGNORE_SUBMODULES = (1 << 5),
 	/** Use the "patience diff" algorithm (currently unimplemented) */
 	GIT_DIFF_PATIENCE = (1 << 6),
@@ -314,6 +314,8 @@ typedef int (*git_diff_notify_cb)(
  * - `notify_cb` is an optional callback function, notifying the consumer of
  *   which files are being examined as the diff is generated
  * - `notify_payload` is the payload data to pass to the `notify_cb` function
+ * - `ignore_submodules` overrides the submodule ignore setting for all
+ *   submodules in the diff.
  */
 typedef struct {
 	unsigned int version;      /**< version for the struct */
@@ -326,6 +328,7 @@ typedef struct {
 	git_off_t max_size;        /**< defaults to 512MB */
 	git_diff_notify_cb notify_cb;
 	void *notify_payload;
+	git_submodule_ignore_t ignore_submodules; /** << submodule ignore rule */
 } git_diff_options;
 
 #define GIT_DIFF_OPTIONS_VERSION 1
@@ -796,6 +799,14 @@ GIT_EXTERN(size_t) git_diff_num_deltas(git_diff_list *diff);
 GIT_EXTERN(size_t) git_diff_num_deltas_of_type(
 	git_diff_list *diff,
 	git_delta_t type);
+
+/**
+ * Check if deltas are sorted case sensitively or insensitively.
+ *
+ * @param diff Diff list to check
+ * @return 0 if case sensitive, 1 if case is ignored
+ */
+GIT_EXTERN(int) git_diff_is_sorted_icase(const git_diff_list *diff);
 
 /**
  * Return the diff delta and patch for an entry in the diff list.
