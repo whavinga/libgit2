@@ -835,7 +835,8 @@ int git_blame_buffer(
 	}
 
 	/* Diff to the reference blob */
-	git_diff_blob_to_buffer(reference->final_blob, buffer, buffer_len,
+	git_diff_blob_to_buffer(reference->final_blob, blame->path,
+			buffer, buffer_len, blame->path,
 			&diffopts, NULL, buffer_hunk_cb, buffer_line_cb, blame);
 
 	/* Insert new hunks corresponding to diff hunks, adjusting those that come
