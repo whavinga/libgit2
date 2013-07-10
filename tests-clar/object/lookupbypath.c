@@ -31,6 +31,7 @@ void test_object_lookupbypath__cleanup(void)
 {
 	git_object_free(g_actualobject);
 	git_object_free(g_expectedobject);
+	git_tree_free(g_root_tree);
 	git_commit_free(g_head_commit);
 	g_expectedobject = NULL;
 	git_repository_free(g_repo);
