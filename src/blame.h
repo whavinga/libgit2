@@ -21,8 +21,6 @@ struct git_blame {
 	size_t current_diff_line;
 	size_t current_blame_line;
 	git_blame_hunk *current_hunk;
-
-	bool trivial_file_match;
 };
 
 git_blame *git_blame__alloc(

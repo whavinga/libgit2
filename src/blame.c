@@ -270,24 +270,6 @@ static int ptrs_equal_cmp(const void *a, const void *b) {
 		0;
 }
 
-static int trivial_file_cb(
-	const git_diff_delta *delta,
-	float progress,
-	void *payload)
-{
-	git_blame *blame = (git_blame*)payload;
-
-	GIT_UNUSED(progress);
-
-	blame->trivial_file_match = !git_vector_bsearch(NULL, &blame->paths, delta->new_file.path);
-
-	/* File renames should be followed */
-	if (blame->trivial_file_match)
-		add_if_not_present(&blame->paths, delta->old_file.path);
-
-	return 0;
-}
-
 static int trivial_hunk_cb(
 	const git_diff_delta *delta,
 	const git_diff_range *range,
@@ -297,14 +279,9 @@ static int trivial_hunk_cb(
 {
 	git_blame *blame = (git_blame*)payload;
 
-	if (!blame->trivial_file_match) return 0;
-
+	GIT_UNUSED(delta);
 	GIT_UNUSED(header);
 	GIT_UNUSED(header_len);
-
-	if (git__strcmp(blame->path, delta->old_file.path)) {
-		DEBUGF("===> Now tracking %s through %s\n", blame->path, delta->old_file.path);
-	}
 
 	DEBUGF("  Hunk: %s (%d-%d) <- %s (%d-%d)\n",
 			delta->new_file.path,
@@ -441,7 +418,6 @@ static int trivial_line_cb(
 {
 	git_blame *blame = (git_blame*)payload;
 	git_blame_hunk *curhunk = blame->current_hunk;
-	if (!blame->trivial_file_match) return 0;
 
 #ifdef DO_DEBUG
 	{
@@ -473,9 +449,74 @@ static int trivial_line_cb(
 	return 0;
 }
 
+static int trivial_process_patch(git_diff_patch *patch, git_blame *blame)
+{
+	int error = 0;
+	size_t i, num_hunks = git_diff_patch_num_hunks(patch);
+	const git_diff_delta *delta = git_diff_patch_delta(patch);
+	DEBUGF("Got %d hunks\n", num_hunks);
+
+	for (i=0; i<num_hunks; ++i) {
+		const git_diff_range *range;
+		size_t lines, j;
+
+		if ((error = git_diff_patch_get_hunk(&range, NULL, NULL, &lines, patch, i)) < 0)
+			break;
+
+		trivial_hunk_cb(delta, range, NULL, 0, blame);
+
+		for (j=0; j<lines; ++j) {
+			char line_origin;
+			const char *content;
+			size_t content_len;
+			int old_lineno;
+			int new_lineno;
+			if ((error = git_diff_patch_get_line_in_hunk(
+							&line_origin, &content, &content_len, &old_lineno, &new_lineno,
+							patch, i, j)) < 0)
+				goto cleanup;
+			trivial_line_cb(delta, range, line_origin, content, content_len, blame);
+		}
+	}
+
+cleanup:
+	return error;
+}
+
 static int trivial_match(git_diff_list *diff, git_blame *blame)
 {
-	int error = git_diff_foreach(diff, trivial_file_cb, trivial_hunk_cb, trivial_line_cb, blame);
+	int error = 0;
+	size_t i, max_i = git_diff_num_deltas(diff);
+
+	for (i=0; i<max_i; ++i) {
+		const git_diff_delta *delta;
+		git_diff_patch *patch;
+
+		/* just get the delta to see if we care about this entry */
+		if ((error = git_diff_get_patch(NULL, &delta, diff, i)) < 0)
+			break;
+
+		/* try to look up filename in the list of paths */
+		if (git_vector_bsearch(NULL, &blame->paths, delta->new_file.path) != 0)
+			continue;
+
+		/* track renames */
+#ifdef DO_DEBUG
+		if (git_vector_bsearch(NULL, &blame->paths, delta->old_file.path) != 0)
+			DEBUGF("===> Now tracking through %s\n", delta->old_file.path);
+#endif
+		add_if_not_present(&blame->paths, delta->old_file.path);
+
+		/* now that we know we're interested, generate the text diff */
+		if ((error = git_diff_get_patch(&patch, &delta, diff, i)) < 0)
+			break;
+
+		error = trivial_process_patch(patch, blame);
+		git_diff_patch_free(patch);
+		if (error < 0)
+			break;
+	}
+
 	blame->current_hunk = NULL;
 	return error;
 }
