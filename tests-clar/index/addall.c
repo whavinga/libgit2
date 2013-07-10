@@ -2,7 +2,7 @@
 #include "../status/status_helpers.h"
 #include "posix.h"
 
-git_repository *g_repo = NULL;
+static git_repository *g_repo = NULL;
 
 void test_index_addall__initialize(void)
 {

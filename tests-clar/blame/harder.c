@@ -16,7 +16,7 @@
  *
  */
 
-git_repository *g_repo = NULL;
+static git_repository *g_repo = NULL;
 
 void test_blame_harder__initialize(void)
 {
