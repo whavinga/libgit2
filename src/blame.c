@@ -23,7 +23,7 @@
 static void dump_hunks(git_blame *blame)
 {
 	size_t i;
-	git_blame_hunk *hunk;
+	blame_hunk *hunk;
 	char str[41] = {0};
 	char *path;
 
@@ -67,55 +67,60 @@ static int hunk_search_cmp_helper(const void *key, size_t start_line, size_t num
 }
 static int hunk_byfinalline_search_cmp(const void *key, const void *entry)
 {
-	git_blame_hunk *hunk = (git_blame_hunk*)entry;
+	blame_hunk *hunk = (blame_hunk*)entry;
 	return hunk_search_cmp_helper(key, hunk->final_start_line_number, hunk->lines_in_hunk);
 }
 static int hunk_byorigline_search_cmp(const void *key, const void *entry)
 {
-	git_blame_hunk *hunk = (git_blame_hunk*)entry;
+	blame_hunk *hunk = (blame_hunk*)entry;
 	return hunk_search_cmp_helper(key, hunk->orig_start_line_number, hunk->lines_in_hunk);
 }
 
 static int hunk_sort_cmp_by_start_line(const void *_a, const void *_b)
 {
-	git_blame_hunk *a = (git_blame_hunk*)_a,
-						*b = (git_blame_hunk*)_b;
+	blame_hunk *a = (blame_hunk*)_a,
+						*b = (blame_hunk*)_b;
 
 	return a->final_start_line_number - b->final_start_line_number;
 }
 
-static bool line_is_at_end_of_hunk(size_t line, git_blame_hunk *hunk)
+static bool line_is_at_end_of_hunk(size_t line, blame_hunk *hunk)
 {
 	return line >= (hunk->final_start_line_number + hunk->lines_in_hunk - 1);
 }
 
-static bool line_is_at_start_of_hunk(size_t line, git_blame_hunk *hunk)
+static bool line_is_at_start_of_hunk(size_t line, blame_hunk *hunk)
 {
 	return line <= hunk->final_start_line_number;
 }
 
-static git_blame_hunk* new_hunk(uint16_t start, uint16_t lines, uint16_t orig_start, const char *path)
+static blame_hunk* new_hunk(uint16_t start, uint16_t lines, uint16_t orig_start, const char *path)
 {
-	git_blame_hunk *hunk = git__calloc(1, sizeof(git_blame_hunk));
+	blame_hunk *hunk = git__calloc(1, sizeof(blame_hunk));
 	if (!hunk) return NULL;
 
 	hunk->lines_in_hunk = lines;
 	hunk->final_start_line_number = start;
 	hunk->orig_start_line_number = orig_start;
-	hunk->orig_path = git__strdup(path);
+	hunk->orig_path = path ? git__strdup(path) : NULL;
 
 	return hunk;
 }
 
-static git_blame_hunk* dup_hunk(git_blame_hunk *hunk)
+blame_hunk* git_blame__alloc_hunk()
 {
-	git_blame_hunk *newhunk = new_hunk(hunk->final_start_line_number, hunk->lines_in_hunk, hunk->orig_start_line_number, hunk->orig_path);
+	return new_hunk(0,0,0,NULL);
+}
+
+static blame_hunk* dup_hunk(blame_hunk *hunk)
+{
+	blame_hunk *newhunk = new_hunk(hunk->final_start_line_number, hunk->lines_in_hunk, hunk->orig_start_line_number, hunk->orig_path);
 	git_oid_cpy(&newhunk->orig_commit_id, &hunk->orig_commit_id);
 	git_oid_cpy(&newhunk->final_commit_id, &hunk->final_commit_id);
 	return newhunk;
 }
 
-static void free_hunk(git_blame_hunk *hunk)
+static void free_hunk(blame_hunk *hunk)
 {
 	git__free((void*)hunk->orig_path);
 	git__free(hunk);
@@ -129,8 +134,8 @@ static void shift_hunks_by_final(git_vector *v, size_t start_line, int shift_by)
 
 	if (!git_vector_bsearch2( &i, v, hunk_byfinalline_search_cmp, &start_line)) {
 		for (; i < v->length; i++) {
-			git_blame_hunk *hunk = (git_blame_hunk*)v->contents[i];
-			DEBUGF("Shifting (f) hunk at line %zu by %d to %zu\n", hunk->final_start_line_number,
+			blame_hunk *hunk = (blame_hunk*)v->contents[i];
+			DEBUGF("Shifting (f) hunk at line %hu by %d to %d\n", hunk->final_start_line_number,
 					shift_by, hunk->final_start_line_number + shift_by);
 			hunk->final_start_line_number += shift_by;
 		}
@@ -144,9 +149,9 @@ static void shift_hunks_by_orig(git_vector *v, size_t start_line, int shift_by)
 
 	if (!git_vector_bsearch2( &i, v, hunk_byorigline_search_cmp, &start_line)) {
 		for (; i < v->length; i++) {
-			git_blame_hunk *hunk = (git_blame_hunk*)v->contents[i];
+			blame_hunk *hunk = (blame_hunk*)v->contents[i];
 			hunk->orig_start_line_number += shift_by;
-			DEBUGF("Shifting (o) hunk at line %zu by %d to %zu\n", hunk->final_start_line_number,
+			DEBUGF("Shifting (o) hunk at line %hu by %d to %d\n", hunk->final_start_line_number,
 					shift_by, hunk->orig_start_line_number);
 		}
 	}
@@ -189,7 +194,7 @@ git_blame* git_blame__alloc(
 void git_blame_free(git_blame *blame)
 {
 	size_t i;
-	git_blame_hunk *hunk;
+	blame_hunk *hunk;
 	char *path;
 
 	if (!blame) return;
@@ -305,10 +310,10 @@ static const char* raw_line(git_blame *blame, size_t i)
 		*git_array_get(blame->line_index, i-1);
 }
 
-static git_blame_hunk *split_hunk_in_vector(git_vector *vec, git_blame_hunk *hunk, size_t at_line, bool return_new)
+static blame_hunk *split_hunk_in_vector(git_vector *vec, blame_hunk *hunk, size_t at_line, bool return_new)
 {
 	size_t new_line_count;
-	git_blame_hunk *nh;
+	blame_hunk *nh;
 
 	/* Don't split if already at a boundary */
 	if (line_is_at_start_of_hunk(at_line, hunk) ||
@@ -325,19 +330,19 @@ static git_blame_hunk *split_hunk_in_vector(git_vector *vec, git_blame_hunk *hun
 	git_oid_cpy(&nh->final_commit_id, &hunk->final_commit_id);
 	git_oid_cpy(&nh->orig_commit_id, &hunk->orig_commit_id);
 	hunk->lines_in_hunk -= (new_line_count);
-	DEBUGF("Got %zu (+%zu) and %zu (+%zu)\n",
+	DEBUGF("Got %hu (+%hu) and %hu (+%hu)\n",
 			hunk->final_start_line_number, hunk->lines_in_hunk,
 			nh->final_start_line_number, nh->lines_in_hunk);
 	git_vector_insert_sorted(vec, nh, NULL);
 	{
-		git_blame_hunk *ret = return_new ? nh : hunk;
-		DEBUGF("Returning hunk that starts at %zu (orig %zu)\n",
+		blame_hunk *ret = return_new ? nh : hunk;
+		DEBUGF("Returning hunk that starts at %hu (orig %hu)\n",
 				ret->final_start_line_number, ret->orig_start_line_number);
 		return ret;
 	}
 }
 
-static void claim_hunk(git_blame *blame, git_blame_hunk *hunk, const char *orig_path)
+static void claim_hunk(git_blame *blame, blame_hunk *hunk, const char *orig_path)
 {
 	size_t i;
 
@@ -364,7 +369,7 @@ static void claim_hunk(git_blame *blame, git_blame_hunk *hunk, const char *orig_
 
 static void close_and_claim_current_hunk(git_blame *blame, const char *orig_path)
 {
-	git_blame_hunk *hunk = blame->current_hunk;
+	blame_hunk *hunk = (blame_hunk*)blame->current_hunk;
 
 	if (!hunk) {
 		DEBUGF("Can't close NULL hunk\n");
@@ -381,7 +386,7 @@ static void close_and_claim_current_hunk(git_blame *blame, const char *orig_path
 
 static void match_line(git_blame *blame, const char *line, size_t len, const char *orig_path)
 {
-	git_blame_hunk *hunk = blame->current_hunk;
+	blame_hunk *hunk = blame->current_hunk;
 	const char *raw = (blame->current_blame_line == 0 ? NULL : raw_line(blame, blame->current_blame_line));
 	size_t i, j;
 
@@ -430,7 +435,7 @@ static int process_diff_line_trivial(
 	void *payload)
 {
 	git_blame *blame = (git_blame*)payload;
-	git_blame_hunk *curhunk = blame->current_hunk;
+	blame_hunk *curhunk = blame->current_hunk;
 
 #ifdef DO_DEBUG
 	{
@@ -478,10 +483,10 @@ static void process_hunk_start_hunk_shift(
 
 	GIT_UNUSED(delta);
 
-	DEBUGF("  Looking for unclaimed hunk at line %zu\n", wedge_line);
+	DEBUGF("  Looking for unclaimed hunk at orig line %zu\n", wedge_line);
 	if (!git_vector_bsearch2(&i, &blame->unclaimed_hunks, hunk_byorigline_search_cmp, &wedge_line)) {
 		DEBUGF("  Found one at index %zu\n", i);
-		blame->current_hunk = (git_blame_hunk*)git_vector_get(&blame->unclaimed_hunks, i);
+		blame->current_hunk = (blame_hunk*)git_vector_get(&blame->unclaimed_hunks, i);
 		if (!line_is_at_start_of_hunk(wedge_line, blame->current_hunk)){
 			blame->current_hunk = split_hunk_in_vector(&blame->unclaimed_hunks,
 					blame->current_hunk, wedge_line, true);
@@ -502,7 +507,7 @@ static int process_diff_line_hunk_shift(
 	git_blame *blame)
 {
 	size_t next_hunk_start;
-	git_blame_hunk *hunk;
+	blame_hunk *hunk;
 
 #ifdef DO_DEBUG
 	{
@@ -713,7 +718,7 @@ cleanup:
 
 	/* Attribute dangling hunks to oldest commit in the range */
 	while (blame->unclaimed_hunks.length > 0) {
-		git_blame_hunk *hunk = (git_blame_hunk*)git_vector_get(&blame->unclaimed_hunks, 0);
+		blame_hunk *hunk = (blame_hunk*)git_vector_get(&blame->unclaimed_hunks, 0);
 		claim_hunk(blame, hunk, blame->path);
 	}
 
@@ -779,7 +784,7 @@ int git_blame_file(
 
 	if ((error = load_blob(blame, repo, &normOptions.newest_commit, path)) < 0)
 		goto on_error;
-	DEBUGF("\n'%s' has %zu lines\n", path, blame->num_lines);
+	DEBUGF("\n============\n'%s' has %zu lines\n", path, blame->num_lines);
 
 	/* Initial blame hunk - all lines are unknown */
 	git_vector_insert(&blame->unclaimed_hunks,
@@ -802,7 +807,7 @@ on_error:
  * Buffer blaming
  *******************************************************************************/
 
-static bool hunk_is_bufferblame(git_blame_hunk *hunk)
+static bool hunk_is_bufferblame(blame_hunk *hunk)
 {
 	return git_oid_iszero(&hunk->final_commit_id);
 }
@@ -825,7 +830,7 @@ static int buffer_hunk_cb(
 	blame->current_diff_line = wedge_line;
 
 	/* If this hunk doesn't start between existing hunks, split a hunk up so it does */
-	blame->current_hunk = (git_blame_hunk*)git_blame_get_hunk_byline(blame, wedge_line);
+	blame->current_hunk = (blame_hunk*)git_blame_get_hunk_byline(blame, wedge_line);
 	if (!line_is_at_start_of_hunk(wedge_line, blame->current_hunk)){
 		blame->current_hunk = split_hunk_in_vector(&blame->hunks, blame->current_hunk, wedge_line, true);
 		dump_hunks(blame);
@@ -879,14 +884,14 @@ static int buffer_line_cb(
 		size_t shift_base = blame->current_diff_line + blame->current_hunk->lines_in_hunk+1;
 
 		if (--(blame->current_hunk->lines_in_hunk) == 0) {
-			DEBUGF("Removing empty hunk at final line %zu\n",
+			size_t i;
+			DEBUGF("Removing empty hunk at final line %hu\n",
 					blame->current_hunk->final_start_line_number);
 			shift_base--;
-			size_t i;
 			if (!git_vector_search2(&i, &blame->hunks, ptrs_equal_cmp, blame->current_hunk)) {
 				git_vector_remove(&blame->hunks, i);
 				free_hunk(blame->current_hunk);
-				blame->current_hunk = (git_blame_hunk*)git_blame_get_hunk_byindex(blame, i);
+				blame->current_hunk = (blame_hunk*)git_blame_get_hunk_byindex(blame, i);
 			}
 			dump_hunks(blame);
 		}
@@ -904,7 +909,7 @@ int git_blame_buffer(
 	git_blame *blame;
 	git_diff_options diffopts = GIT_DIFF_OPTIONS_INIT;
 	size_t i;
-	git_blame_hunk *hunk;
+	blame_hunk *hunk;
 
 	diffopts.context_lines = 0;
 

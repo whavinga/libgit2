@@ -20,7 +20,7 @@ void test_blame_getters__initialize(void)
 	g_blame = git_blame__alloc(NULL, opts, "");
 
 	for (i=0; i<5; i++) {
-		git_blame_hunk *h = (git_blame_hunk*)calloc(1, sizeof(git_blame_hunk));
+		blame_hunk *h = git_blame__alloc_hunk();
 		h->final_start_line_number = hunks[i].final_start_line_number;
 		h->orig_path = git__strdup(hunks[i].orig_path);
 		h->lines_in_hunk = hunks[i].lines_in_hunk;
@@ -55,3 +55,9 @@ void test_blame_getters__byline(void)
 	cl_assert_equal_p(h, NULL);
 }
 
+void test_blame_getters__struct_sizes_match(void)
+{
+	/* Make sure these structures don't get out of sync */
+	cl_assert_equal_i(sizeof(git_blame_hunk),
+			sizeof(blame_hunk) - sizeof(git_oidmap*));
+}
