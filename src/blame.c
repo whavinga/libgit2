@@ -18,6 +18,8 @@
 /*#define DO_HUNK_SHIFT*/
 /*#define DO_DEBUG*/
 
+GIT__USE_LINEMAP
+
 #ifdef DO_DEBUG
 #define DEBUGF(...) printf(__VA_ARGS__)
 static void dump_hunks(git_blame *blame)
@@ -44,10 +46,18 @@ static void dump_hunks(git_blame *blame)
 				hunk->orig_path);
 	}
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
+		khiter_t k;
+
 		DEBUGF("UNCLAIMED: %d +%d (orig %2d)\n",
 				hunk->final_start_line_number,
 				hunk->lines_in_hunk - 1,
 				hunk->orig_start_line_number);
+		for (k = kh_begin(hunk->linemap); k != kh_end(hunk->linemap); ++k) {
+			if (kh_exist(hunk->linemap, k)) {
+				git_oid_tostr(str, 9, kh_key(hunk->linemap, k));
+				DEBUGF("  %s -> line %u\n", str, kh_val(hunk->linemap, k));
+			}
+		}
 	}
 	DEBUGF("----------\n");
 }
@@ -55,6 +65,31 @@ static void dump_hunks(git_blame *blame)
 #define DEBUGF(...)
 #define dump_hunks(x)
 #endif
+
+static void linemap_put(blame_linemap *h, const git_oid *k, uint16_t v)
+{
+	khiter_t pos;
+	int err = 0;
+
+#ifdef DO_DEBUG
+	char str[41]={0};
+	git_oid_tostr(str, 9, k);
+#endif
+
+	pos = kh_get(line, h, k);
+	if (pos == kh_end(h)) {
+		DEBUGF("%% Adding %s to linemap, line %u\n", str, v);
+		pos = kh_put(line, h, k, &err);
+	} else {
+		DEBUGF("%% Modifying %s in linemap; was %u, now %u\n", str, kh_val(h,pos), v);
+	}
+
+	if (err >= 0) {
+		kh_key(h, pos) = k;
+		kh_val(h, pos) = v;
+	}
+}
+
 
 static int hunk_search_cmp_helper(const void *key, size_t start_line, size_t num_lines)
 {
@@ -103,6 +138,7 @@ static blame_hunk* new_hunk(uint16_t start, uint16_t lines, uint16_t orig_start,
 	hunk->final_start_line_number = start;
 	hunk->orig_start_line_number = orig_start;
 	hunk->orig_path = path ? git__strdup(path) : NULL;
+	hunk->linemap = blame_linemap_alloc();
 
 	return hunk;
 }
@@ -122,6 +158,7 @@ static blame_hunk* dup_hunk(blame_hunk *hunk)
 
 static void free_hunk(blame_hunk *hunk)
 {
+	blame_linemap_free(hunk->linemap);
 	git__free((void*)hunk->orig_path);
 	git__free(hunk);
 }
@@ -330,6 +367,7 @@ static blame_hunk *split_hunk_in_vector(git_vector *vec, blame_hunk *hunk, size_
 	git_oid_cpy(&nh->final_commit_id, &hunk->final_commit_id);
 	git_oid_cpy(&nh->orig_commit_id, &hunk->orig_commit_id);
 	hunk->lines_in_hunk -= (new_line_count);
+	kh_clear_line(hunk->linemap);
 	DEBUGF("Got %hu (+%hu) and %hu (+%hu)\n",
 			hunk->final_start_line_number, hunk->lines_in_hunk,
 			nh->final_start_line_number, nh->lines_in_hunk);
@@ -543,19 +581,51 @@ static void process_hunk_end_hunk_shift(
 		git_blame *blame)
 {
 	GIT_UNUSED(range);
+
 	blame->current_blame_line--;
-	close_and_claim_current_hunk(blame, delta->old_file.path);
+	if (blame->current_hunk) {
+		blame_hunk *hunk = blame->current_hunk;
+		close_and_claim_current_hunk(blame, delta->old_file.path);
+		DEBUGF("EOH: shifting hunks starting at %zu by %d\n",
+				blame->current_blame_line+1, -hunk->lines_in_hunk);
+		shift_hunks_by_orig(&blame->unclaimed_hunks, blame->current_blame_line+1,
+				-hunk->lines_in_hunk);
+	}
 }
 
 /*******************************************************************************
  * Plumbing
  ******************************************************************************/
 
+static void setup_unclaimed_hunks_from_linemap(git_blame *blame)
+{
+	size_t i;
+	blame_hunk *hunk;
+
+	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
+		khiter_t k = kh_get(line, hunk->linemap, &blame->current_commit);
+		if (k != kh_end(hunk->linemap))
+			hunk->orig_start_line_number = kh_val(hunk->linemap, k);
+	}
+}
+
+static void sync_unclaimed_hunks_to_linemap(git_blame *blame)
+{
+	size_t i;
+	blame_hunk *hunk;
+
+	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
+		linemap_put(hunk->linemap, &blame->parent_commit, hunk->orig_start_line_number);
+	}
+}
+
 static int process_patch(git_diff_patch *patch, git_blame *blame)
 {
 	int error = 0;
 	size_t i, num_hunks = git_diff_patch_num_hunks(patch);
 	const git_diff_delta *delta = git_diff_patch_delta(patch);
+
+	setup_unclaimed_hunks_from_linemap(blame);
 
 	for (i=0; i<num_hunks; ++i) {
 		const git_diff_range *range;
@@ -663,6 +733,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		}
 #endif
 
+		git_oid_cpy(&blame->current_commit, &oid);
 		if ((error = git_commit_lookup(&commit, blame->repository, &oid)) < 0)
 			break;
 
@@ -674,6 +745,10 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		error = git_commit_parent(&parent, commit, 0);
 		if (error != 0 && error != GIT_ENOTFOUND)
 			goto cleanup;
+
+		if (parent)
+			git_oid_cpy(&blame->parent_commit, git_commit_id(parent));
+		if (!parent) git__memzero(&blame->parent_commit, sizeof(git_oid));
 
 		/* Get the trees from this commit and its parent */
 		if ((error = git_commit_tree(&committree, commit)) < 0)
@@ -703,9 +778,10 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		if ((error = git_diff_find_similar(diff, &diff_find_opts)) < 0)
 			goto cleanup;
 
-		git_oid_cpy(&blame->current_commit, &oid);
-
 		error = process_diff(diff, blame);
+		sync_unclaimed_hunks_to_linemap(blame);
+		dump_hunks(blame);
+
 
 cleanup:
 		git_tree_free(committree);
