@@ -15,6 +15,7 @@
 #include "util.h"
 #include "repository.h"
 
+/*#define DO_PASS_BLAME*/
 /*#define DO_DEBUG*/
 
 GIT__USE_LINEMAP
@@ -507,6 +508,41 @@ static int process_diff_line_trivial(
 }
 
 /*******************************************************************************
+ * Blame-passing algorithm
+ ******************************************************************************/
+
+static void process_hunk_start_passing_blame(
+		const git_diff_range *range,
+		const git_diff_delta *delta,
+		git_blame *blame)
+{
+}
+
+static int process_diff_line_passing_blame(
+		const git_diff_delta *delta,
+		const git_diff_range *range,
+		char line_origin,
+		const char *content,
+		size_t content_len,
+		git_blame *blame)
+{
+#ifdef DO_DEBUG
+	{
+		char *str = git__substrdup(content, content_len);
+		DEBUGF("    %c%3zu %s", line_origin, blame->current_diff_line, str);
+		git__free(str);
+	}
+#endif
+}
+
+static void process_hunk_end_passing_blame(
+		const git_diff_range *range,
+		const git_diff_delta *delta,
+		git_blame *blame)
+{
+}
+
+/*******************************************************************************
  * Plumbing
  ******************************************************************************/
 
@@ -530,6 +566,10 @@ static int process_patch(git_diff_patch *patch, git_blame *blame)
 				range->old_start, range->old_start + max(0, range->old_lines - 1));
 		blame->current_diff_line = range->new_start;
 
+#ifdef DO_PASS_BLAME
+		process_hunk_start_passing_blame(range, delta, blame);
+#endif
+
 		for (j=0; j<lines; ++j) {
 			char line_origin;
 			const char *content;
@@ -541,9 +581,16 @@ static int process_patch(git_diff_patch *patch, git_blame *blame)
 							patch, i, j)) < 0)
 				goto cleanup;
 
+#ifdef DO_PASS_BLAME
+			error = process_diff_line_passing_blame(delta, range, line_origin, content, content_len, blame);
+#else
 			error = process_diff_line_trivial(delta, range, line_origin, content, content_len, blame);
+#endif
 		}
 
+#ifdef DO_PASS_BLAME
+		process_hunk_end_passing_blame(range, delta, blame);
+#endif
 	}
 
 cleanup:
