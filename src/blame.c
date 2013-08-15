@@ -15,7 +15,6 @@
 #include "util.h"
 #include "repository.h"
 
-/*#define DO_HUNK_SHIFT*/
 /*#define DO_DEBUG*/
 
 GIT__USE_LINEMAP
@@ -506,94 +505,6 @@ static int process_diff_line_trivial(
 }
 
 /*******************************************************************************
- * Hunk-shift matching
- ******************************************************************************/
-
-static void process_hunk_start_hunk_shift(
-		const git_diff_range *range,
-		const git_diff_delta *delta,
-		git_blame *blame)
-{
-	/* Pure insertions have an off-by-one start line */
-	size_t i,
-			 wedge_line = (range->old_lines == 0) ? range->new_start : range->old_start;
-	blame->current_diff_line = wedge_line;
-
-	GIT_UNUSED(delta);
-
-	DEBUGF("  Looking for unclaimed hunk at orig line %zu\n", wedge_line);
-	if (!git_vector_bsearch2(&i, &blame->unclaimed_hunks, hunk_byorigline_search_cmp, &wedge_line)) {
-		DEBUGF("  Found one at index %zu\n", i);
-		blame->current_hunk = (blame_hunk*)git_vector_get(&blame->unclaimed_hunks, i);
-		if (!line_is_at_start_of_hunk(wedge_line, blame->current_hunk)){
-			blame->current_hunk = split_hunk_in_vector(&blame->unclaimed_hunks,
-					blame->current_hunk, wedge_line, true);
-		}
-		blame->current_blame_line = blame->current_hunk->final_start_line_number;
-	} else {
-		DEBUGF("  No unclaimed hunks match that line\n");
-		blame->current_hunk = NULL;
-	}
-}
-
-static int process_diff_line_hunk_shift(
-	const git_diff_delta *delta,
-	const git_diff_range *range,
-	char line_origin,
-	const char *content,
-	size_t content_len,
-	git_blame *blame)
-{
-	size_t next_hunk_start;
-	blame_hunk *hunk;
-
-#ifdef DO_DEBUG
-	{
-		char *str = git__substrdup(content, content_len);
-		DEBUGF("    %c%3zu %s", line_origin, blame->current_diff_line, str);
-		git__free(str);
-	}
-#endif
-
-	GIT_UNUSED(delta);
-	GIT_UNUSED(range);
-	GIT_UNUSED(content);
-	GIT_UNUSED(content_len);
-
-	if (!blame->current_hunk) return 0;
-	hunk = blame->current_hunk;
-
-	next_hunk_start = hunk->orig_start_line_number + hunk->lines_in_hunk + 1;
-	if (line_origin == GIT_DIFF_LINE_ADDITION) {
-		shift_hunks_by_orig(&blame->unclaimed_hunks, next_hunk_start, -1);
-		blame->current_blame_line++;
-		blame->current_diff_line++;
-	} else if (line_origin == GIT_DIFF_LINE_DELETION) {
-		shift_hunks_by_orig(&blame->unclaimed_hunks, next_hunk_start , 1);
-	}
-
-	return 0;
-}
-
-static void process_hunk_end_hunk_shift(
-		const git_diff_range *range,
-		const git_diff_delta *delta,
-		git_blame *blame)
-{
-	GIT_UNUSED(range);
-
-	blame->current_blame_line--;
-	if (blame->current_hunk) {
-		blame_hunk *hunk = blame->current_hunk;
-		close_and_claim_current_hunk(blame, delta->old_file.path);
-		DEBUGF("EOH: shifting hunks starting at %zu by %d\n",
-				blame->current_blame_line+1, -hunk->lines_in_hunk);
-		shift_hunks_by_orig(&blame->unclaimed_hunks, blame->current_blame_line+1,
-				-hunk->lines_in_hunk);
-	}
-}
-
-/*******************************************************************************
  * Plumbing
  ******************************************************************************/
 
@@ -641,10 +552,6 @@ static int process_patch(git_diff_patch *patch, git_blame *blame)
 				range->old_start, range->old_start + max(0, range->old_lines - 1));
 		blame->current_diff_line = range->new_start;
 
-#ifdef DO_HUNK_SHIFT
-		process_hunk_start_hunk_shift(range, delta, blame);
-#endif
-
 		for (j=0; j<lines; ++j) {
 			char line_origin;
 			const char *content;
@@ -656,16 +563,8 @@ static int process_patch(git_diff_patch *patch, git_blame *blame)
 							patch, i, j)) < 0)
 				goto cleanup;
 
-#ifdef DO_HUNK_SHIFT
-			error = process_diff_line_hunk_shift(delta, range, line_origin, content, content_len, blame);
-#else
 			error = process_diff_line_trivial(delta, range, line_origin, content, content_len, blame);
-#endif
 		}
-
-#ifdef DO_HUNK_SHIFT
-		process_hunk_end_hunk_shift(range, delta, blame);
-#endif
 
 	}
 
