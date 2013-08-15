@@ -69,22 +69,23 @@ static void linemap_put(blame_linemap *h, const git_oid *k, uint16_t v)
 {
 	khiter_t pos;
 	int err = 0;
+	git_oid *newoid = git__calloc(1, sizeof(git_oid));
+	git_oid_cpy(newoid, k);
 
 #ifdef DO_DEBUG
 	char str[41]={0};
-	git_oid_tostr(str, 9, k);
+	git_oid_tostr(str, 9, newoid);
 #endif
 
-	pos = kh_get(line, h, k);
+	pos = kh_get(line, h, newoid);
 	if (pos == kh_end(h)) {
 		DEBUGF("%% Adding %s to linemap, line %u\n", str, v);
-		pos = kh_put(line, h, k, &err);
+		pos = kh_put(line, h, newoid, &err);
 	} else {
 		DEBUGF("%% Modifying %s in linemap; was %u, now %u\n", str, kh_val(h,pos), v);
 	}
 
 	if (err >= 0) {
-		kh_key(h, pos) = k;
 		kh_val(h, pos) = v;
 	}
 }
@@ -401,6 +402,7 @@ static void claim_hunk(git_blame *blame, blame_hunk *hunk, const char *orig_path
 
 	git_vector_insert_sorted(&blame->hunks, hunk, NULL);
 	blame->current_hunk = NULL;
+	kh_clear_line(hunk->linemap);
 	dump_hunks(blame);
 }
 
@@ -508,35 +510,11 @@ static int process_diff_line_trivial(
  * Plumbing
  ******************************************************************************/
 
-static void setup_unclaimed_hunks_from_linemap(git_blame *blame)
-{
-	size_t i;
-	blame_hunk *hunk;
-
-	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
-		khiter_t k = kh_get(line, hunk->linemap, &blame->current_commit);
-		if (k != kh_end(hunk->linemap))
-			hunk->orig_start_line_number = kh_val(hunk->linemap, k);
-	}
-}
-
-static void sync_unclaimed_hunks_to_linemap(git_blame *blame)
-{
-	size_t i;
-	blame_hunk *hunk;
-
-	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
-		linemap_put(hunk->linemap, &blame->parent_commit, hunk->orig_start_line_number);
-	}
-}
-
 static int process_patch(git_diff_patch *patch, git_blame *blame)
 {
 	int error = 0;
 	size_t i, num_hunks = git_diff_patch_num_hunks(patch);
 	const git_diff_delta *delta = git_diff_patch_delta(patch);
-
-	setup_unclaimed_hunks_from_linemap(blame);
 
 	for (i=0; i<num_hunks; ++i) {
 		const git_diff_range *range;
@@ -678,7 +656,6 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 			goto cleanup;
 
 		error = process_diff(diff, blame);
-		sync_unclaimed_hunks_to_linemap(blame);
 		dump_hunks(blame);
 
 
