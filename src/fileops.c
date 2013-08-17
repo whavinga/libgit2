@@ -165,7 +165,11 @@ int git_futils_readbuffer_updated(
 		return -1;
 	}
 
-	if (S_ISDIR(st.st_mode) || !git__is_sizet(st.st_size+1)) {
+
+	if (S_ISDIR(st.st_mode))
+		return GIT_ENOTFOUND;
+
+	if (!git__is_sizet(st.st_size+1)) {
 		giterr_set(GITERR_OS, "Invalid regular file stat for '%s'", path);
 		return -1;
 	}
