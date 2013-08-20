@@ -35,6 +35,7 @@ typedef struct blame_hunk {
 
 	/* Internal fields */
 	blame_linemap *linemap;
+	size_t current_score;
 } blame_hunk;
 
 struct git_blame {
