@@ -22,11 +22,16 @@ GIT__USE_LINEMAP
 
 #ifdef DO_DEBUG
 #define DEBUGF(...) printf(__VA_ARGS__)
+static char *oidstr(git_oid *oid)
+{
+	static char str[10] = {0};
+	git_oid_tostr(str, 9, oid);
+	return str;
+}
 static void dump_hunks(git_blame *blame)
 {
 	size_t i;
 	blame_hunk *hunk;
-	char str[41] = {0};
 	char *path;
 
 	DEBUGF("----------\n");
@@ -37,12 +42,11 @@ static void dump_hunks(git_blame *blame)
 	DEBUGF("\n");
 
 	git_vector_foreach(&blame->hunks, i, hunk) {
-		git_oid_tostr(str, 9, &hunk->final_commit_id);
 		DEBUGF("CLAIMED: %2d +%d (orig %2d) %s (from %s)\n",
 				hunk->final_start_line_number,
 				hunk->lines_in_hunk - 1,
 				hunk->orig_start_line_number,
-				str,
+				oidstr(&hunk->final_commit_id),
 				hunk->orig_path);
 	}
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
@@ -54,8 +58,7 @@ static void dump_hunks(git_blame *blame)
 				hunk->orig_start_line_number);
 		for (k = kh_begin(hunk->linemap); k != kh_end(hunk->linemap); ++k) {
 			if (kh_exist(hunk->linemap, k)) {
-				git_oid_tostr(str, 9, kh_key(hunk->linemap, k));
-				DEBUGF("  %s -> line %u\n", str, kh_val(hunk->linemap, k));
+				DEBUGF("  %s -> line %u\n", oidstr(kh_key(hunk->linemap, k)), kh_val(hunk->linemap, k));
 			}
 		}
 	}
@@ -73,17 +76,12 @@ static void linemap_put(blame_linemap *h, const git_oid *k, uint16_t v)
 	git_oid *newoid = git__calloc(1, sizeof(git_oid));
 	git_oid_cpy(newoid, k);
 
-#ifdef DO_DEBUG
-	char str[41]={0};
-	git_oid_tostr(str, 9, newoid);
-#endif
-
 	pos = kh_get(line, h, newoid);
 	if (pos == kh_end(h)) {
-		DEBUGF("%% Adding %s to linemap, line %u\n", str, v);
+		DEBUGF("%% Adding %s to linemap, line %u\n", oidstr(newoid), v);
 		pos = kh_put(line, h, newoid, &err);
 	} else {
-		DEBUGF("%% Modifying %s in linemap; was %u, now %u\n", str, kh_val(h,pos), v);
+		DEBUGF("%% Modifying %s in linemap; was %u, now %u\n", oidstr(newoid), kh_val(h,pos), v);
 	}
 
 	if (err >= 0) {
@@ -385,13 +383,7 @@ static void claim_hunk(git_blame *blame, blame_hunk *hunk, const char *orig_path
 {
 	size_t i;
 
-#ifdef DO_DEBUG
-	{
-		char str[41]={0};
-		git_oid_tostr(str, 9, &blame->current_commit);
-		DEBUGF("Claiming hunk for %s\n", str);
-	}
-#endif
+	DEBUGF("Claiming hunk for %s\n", oidstr(&blame->current_commit));
 
 	if (!git_vector_search2(&i, &blame->unclaimed_hunks, ptrs_equal_cmp, hunk)) {
 		git_vector_remove(&blame->unclaimed_hunks, i);
@@ -649,13 +641,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		git_diff_options diffopts = GIT_DIFF_OPTIONS_INIT;
 		git_diff_find_options diff_find_opts = GIT_DIFF_FIND_OPTIONS_INIT;
 
-#ifdef DO_DEBUG
-		{
-			char str[41] = {0};
-			git_oid_tostr(str, 9, &oid);
-			DEBUGF("Rev %s\n", str);
-		}
-#endif
+		DEBUGF("Rev %s\n", oidstr(&oid));
 
 		git_oid_cpy(&blame->current_commit, &oid);
 		if ((error = git_commit_lookup(&commit, blame->repository, &oid)) < 0)
