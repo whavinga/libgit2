@@ -106,7 +106,7 @@ static int hunk_search_cmp_helper(const void *key, size_t start_line, size_t num
 	uint32_t lineno = *(size_t*)key;
 	if (lineno < start_line)
 		return -1;
-	if (lineno >= ((uint32_t)start_line + num_lines))
+	if (lineno > ((uint32_t)start_line + num_lines))
 		return 1;
 	return 0;
 }
@@ -323,13 +323,13 @@ const git_blame_hunk *git_blame_get_hunk_byline(git_blame *blame, uint32_t linen
 	return NULL;
 }
 
-static blame_hunk* get_hunk_by_origline(git_blame *blame, uint32_t lineno)
+static blame_hunk* get_hunk_by_origline(git_vector *v, uint32_t lineno)
 {
 	size_t i;
-	assert(blame);
+	assert(v);
 
-	if (!git_vector_bsearch2( &i, &blame->hunks, hunk_byorigline_search_cmp, &lineno)) {
-		return (blame_hunk*)git_blame_get_hunk_byindex(blame, i);
+	if (!git_vector_bsearch2( &i, v, hunk_byorigline_search_cmp, &lineno)) {
+		return (blame_hunk*)git_vector_get(v,i);
 	}
 
 	return NULL;
@@ -410,7 +410,7 @@ static void claim_hunk(git_blame *blame, blame_hunk *hunk, const char *orig_path
 
 	git_oid_cpy(&hunk->final_commit_id, &blame->current_commit);
 	git_oid_cpy(&hunk->orig_commit_id, &blame->current_commit);
-	hunk->orig_path = git__strdup(orig_path);
+	if (orig_path) hunk->orig_path = git__strdup(orig_path);
 
 	git_vector_insert_sorted(&blame->hunks, hunk, NULL);
 	blame->current_hunk = NULL;
@@ -432,6 +432,8 @@ static void process_commit_start_passing_blame(git_blame *blame)
 
 		/* Zero out scores */
 		hunk->current_score = 0;
+		if (hunk->scored_path) git__free(hunk->scored_path);
+		hunk->scored_path = NULL;
 
 		/* Page in expected hunk locations, and clean up the linemap */
 		recorded_position = linemap_pop(hunk->linemap, &blame->current_commit);
@@ -453,8 +455,8 @@ static void process_hunk_start_passing_blame(
 
 	/* Find a matching hunk? */
 	blame->current_hunk = NULL;
-	DEBUGF("  Looking for unclaimed hunk at orig line %zu\n", wedge_line);
-	hunk = get_hunk_by_origline(blame, wedge_line);
+	DEBUGF("  Looking for unclaimed hunk to split at orig line %zu\n", wedge_line);
+	hunk = get_hunk_by_origline(&blame->unclaimed_hunks, wedge_line);
 	if (hunk) {
 		DEBUGF("  Found one!\n");
 
@@ -474,7 +476,7 @@ static int process_diff_line_passing_blame(
 		size_t content_len,
 		git_blame *blame)
 {
-	blame_hunk *hunk = get_hunk_by_origline(blame, blame->current_diff_line);
+	blame_hunk *hunk = get_hunk_by_origline(&blame->unclaimed_hunks, blame->current_diff_line);
 
 	GIT_UNUSED(delta);
 	GIT_UNUSED(range);
@@ -489,8 +491,17 @@ static int process_diff_line_passing_blame(
 
 	/* Make sure all blame hunks covered by this diff hunk get scored just once */
 	if (hunk != blame->current_hunk) {
-		hunk->current_score++;
+		if (hunk) {
+			hunk->current_score++;
+			hunk->scored_path = delta->old_file.path ?
+				git__strdup(delta->old_file.path)
+				: "";
+		}
 		blame->current_hunk = hunk;
+	}
+
+	if (line_origin == GIT_DIFF_LINE_ADDITION) {
+		blame->current_blame_line++;
 	}
 
 	return 0;
@@ -501,14 +512,22 @@ static void process_hunk_end_passing_blame(
 		const git_diff_delta *delta,
 		git_blame *blame)
 {
+	size_t i;
+	int shift_amount;
+	blame_hunk *hunk;
+
 	GIT_UNUSED(range);
 	GIT_UNUSED(delta);
 	GIT_UNUSED(blame);
 
 	/* Split the hunk at the end if necessary */
 	if (blame->current_hunk) {
-
+		split_hunk_in_vector(&blame->unclaimed_hunks, blame->current_hunk, blame->current_diff_line-1, true);
 	}
+
+	/* TODO Shift following hunks' expected locations */
+	shift_amount = range->old_lines - range->new_lines;
+	shift_hunks_by_orig(&blame->unclaimed_hunks, blame->current_diff_line, shift_amount);
 }
 
 static void process_commit_end_passing_blame(git_blame *blame, git_commit *commit)
@@ -520,9 +539,10 @@ static void process_commit_end_passing_blame(git_blame *blame, git_commit *commi
 
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
 		if (hunk->current_score >= parentcount) {
+			/* TODO: claim this hunk for this commit */
 			DEBUGF("!!! Hunk at final line %u belongs to %s\n",
 					hunk->final_start_line_number, oidstr(&blame->current_commit));
-			/* TODO: claim this hunk for this commit */
+			claim_hunk(blame, hunk, hunk->scored_path);
 		} else {
 			/* Page the expected location of this hunk into the linemap */
 			linemap_put(hunk->linemap, &blame->parent_commit, hunk->orig_start_line_number);
@@ -635,9 +655,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 		parentcount = git_commit_parentcount(commit);
 		DEBUGF("%zu PARENTS\n", parentcount);
 
-#ifdef DO_PASS_BLAME
 		process_commit_start_passing_blame(blame);
-#endif
 
 		for (i=0; i<parentcount; i++) {
 			error = git_commit_parent(&parent, commit, i);
@@ -679,9 +697,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 			error = process_diff(diff, blame);
 			dump_hunks(blame);
 		}
-#ifdef DO_PASS_BLAME
 		process_commit_end_passing_blame(blame, commit);
-#endif
 
 cleanup:
 		git_tree_free(committree);
