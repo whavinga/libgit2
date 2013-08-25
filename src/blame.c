@@ -506,14 +506,13 @@ static int process_diff_line_passing_blame(
 
 	/* Check all the hunks that expect to be found at this line */
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
-		DEBUGF("Hunk %zu starts at line %zu, checking against %zu\n",
-				i, hunk->orig_start_line_number, blame->current_diff_line);
-		if (hunk_starts_at_or_after_line(hunk, blame->current_diff_line))
+		if (hunk->orig_start_line_number == blame->current_diff_line)
 		{
 			DEBUGF("Checking hunk %zu\n", i);
 			if (!memcmp(raw_line(blame, hunk->final_start_line_number), content, content_len)) {
 				hunk->current_score++;
 				DEBUGF("YUP score is now %zu\n", hunk->current_score);
+				blame->current_hunk = hunk;
 				hunk->scored_path = git__strdup(
 						delta->old_file.path ?
 						delta->old_file.path
@@ -546,6 +545,9 @@ static void process_hunk_end_passing_blame(
 
 	/* Split the hunk at the end if necessary */
 	if (blame->current_hunk) {
+		DEBUGF("Diff hunk ends before %zu, current hunk ends at %zu\n",
+				blame->current_diff_line,
+				blame->current_hunk->orig_start_line_number + blame->current_hunk->lines_in_hunk);
 		split_hunk_in_vector(&blame->unclaimed_hunks, blame->current_hunk,
 				blame->current_diff_line - blame->current_hunk->orig_start_line_number, true);
 	}
@@ -614,7 +616,8 @@ static int process_patch(git_diff_patch *patch, git_blame *blame)
 							patch, i, j)) < 0)
 				goto cleanup;
 
-			error = process_diff_line_passing_blame(delta, range, line_origin, content, content_len, blame);
+			error = process_diff_line_passing_blame(delta, range, line_origin, content,
+					content_len, blame);
 		}
 
 		process_hunk_end_passing_blame(range, delta, blame);
@@ -654,7 +657,6 @@ static int process_diff(git_diff_list *diff, git_blame *blame)
 			break;
 	}
 
-	blame->current_hunk = NULL;
 	return error;
 }
 
