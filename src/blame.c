@@ -389,7 +389,10 @@ static blame_hunk *split_hunk_in_vector(
 	}
 
 	new_line_count = hunk->lines_in_hunk - rel_line;
-	DEBUGF("Splitting hunk at line %zu (+%zu)\n", rel_line, new_line_count-1);
+	DEBUGF("Splitting hunk at line %lu (orig %lu) (+%zu)\n",
+			hunk->final_start_line_number + rel_line,
+			hunk->orig_start_line_number + rel_line,
+			new_line_count-1);
 	nh = new_hunk(hunk->final_start_line_number+rel_line, new_line_count,
 			hunk->orig_start_line_number+rel_line, hunk->orig_path);
 	git_oid_cpy(&nh->final_commit_id, &hunk->final_commit_id);
@@ -508,7 +511,8 @@ static int process_diff_line_passing_blame(
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
 		if (hunk->orig_start_line_number == blame->current_diff_line)
 		{
-			DEBUGF("Checking hunk %zu\n", i);
+			DEBUGF("Checking hunk %zu (%hu + %d)\n", i,
+					hunk->final_start_line_number, hunk->lines_in_hunk-1);
 			if (!memcmp(raw_line(blame, hunk->final_start_line_number), content, content_len)) {
 				hunk->current_score++;
 				DEBUGF("YUP score is now %zu\n", hunk->current_score);
@@ -518,7 +522,7 @@ static int process_diff_line_passing_blame(
 						delta->old_file.path
 						: "");
 			} else {
-				char *str = git__substrdup(raw_line(blame, hunk->final_start_line_number), 20);
+				char *str = git__substrdup(raw_line(blame, hunk->final_start_line_number), 80);
 				DEBUGF("NOPE  -> %s…\n", str);
 				git__free(str);
 			}
@@ -545,11 +549,12 @@ static void process_hunk_end_passing_blame(
 
 	/* Split the hunk at the end if necessary */
 	if (blame->current_hunk) {
-		DEBUGF("Diff hunk ends before %zu, current hunk ends at %zu\n",
-				blame->current_diff_line,
-				blame->current_hunk->orig_start_line_number + blame->current_hunk->lines_in_hunk);
-		split_hunk_in_vector(&blame->unclaimed_hunks, blame->current_hunk,
+		blame_hunk *nh = split_hunk_in_vector(&blame->unclaimed_hunks, blame->current_hunk,
 				blame->current_diff_line - blame->current_hunk->orig_start_line_number, true);
+		DEBUGF("Diff hunk ends before %zu, current hunk ends at %d, nh starts at %zu\n",
+				blame->current_diff_line,
+				blame->current_hunk->orig_start_line_number + blame->current_hunk->lines_in_hunk,
+				nh->final_start_line_number);
 	}
 
 	/* Shift following hunks' expected locations */
@@ -568,7 +573,7 @@ static void process_commit_end_passing_blame(git_blame *blame, git_commit *commi
 		DEBUGF("Hunk at line %hu (orig %hu) score %zu, %zu parents\n",
 				hunk->final_start_line_number, hunk->orig_start_line_number, hunk->current_score, parentcount);
 		if (hunk->current_score >= parentcount) {
-			/* TODO: claim this hunk for this commit */
+			/* Claim this hunk for this commit */
 			DEBUGF("!!! Hunk at final line %u belongs to %s\n",
 					hunk->final_start_line_number, oidstr(&blame->current_commit));
 			claim_hunk(blame, hunk, hunk->scored_path);
