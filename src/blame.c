@@ -567,9 +567,9 @@ static void process_commit_end_passing_blame(git_blame *blame, git_commit *commi
 	/* Hunks with a score equal to the number of parents belong to this commit.
 	 * The rest are somebody else's fault. */
 	size_t i, parentcount = git_commit_parentcount(commit);
-	blame_hunk *hunk;
 
-	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
+	for (i=0; i<blame->unclaimed_hunks.length;) {
+		blame_hunk *hunk = git_vector_get(&blame->unclaimed_hunks, i);
 		DEBUGF("Hunk at line %hu (orig %hu) score %zu, %zu parents\n",
 				hunk->final_start_line_number, hunk->orig_start_line_number, hunk->current_score, parentcount);
 		if (hunk->current_score >= parentcount) {
@@ -577,10 +577,12 @@ static void process_commit_end_passing_blame(git_blame *blame, git_commit *commi
 			DEBUGF("!!! Hunk at final line %u belongs to %s\n",
 					hunk->final_start_line_number, oidstr(&blame->current_commit));
 			claim_hunk(blame, hunk, hunk->scored_path);
-		} else {
-			/* Page the expected location of this hunk into the linemap */
-			linemap_put(hunk->linemap, &blame->parent_commit, hunk->orig_start_line_number);
+			continue;
 		}
+
+		/* Page the expected location of this hunk into the linemap */
+		linemap_put(hunk->linemap, &blame->parent_commit, hunk->orig_start_line_number);
+		i++;
 	}
 }
 
