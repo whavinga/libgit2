@@ -2,8 +2,10 @@
 
 /*
  * $ git blame -s branch_file.txt
- * c47800c7 1) hi
- * a65fedf3 2) bye!
+ *    orig line no                        final line no
+ * commit   V  author       timestamp                 V
+ * c47800c7 1 (Scott Chacon 2010-05-25 11:58:14 -0700 1
+ * a65fedf3 2 (Scott Chacon 2011-08-09 19:33:46 -0700 2
  */
 void test_blame_simple__trivial_testrepo(void)
 {
@@ -19,22 +21,24 @@ void test_blame_simple__trivial_testrepo(void)
 }
 
 /*
- * $ git blame -s b.txt
- * da237394  1) EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
- * da237394  2) EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
- * da237394  3) EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
- * da237394  4) EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE
- * ^b99f7ac  5) 
- * 63d671eb  6) BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
- * 63d671eb  7) BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
- * 63d671eb  8) BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
- * 63d671eb  9) BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB
- * 63d671eb 10) 
- * aa06ecca 11) CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
- * aa06ecca 12) CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
- * aa06ecca 13) CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
- * aa06ecca 14) CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
- * aa06ecca 15) 
+ * $ git blame -n b.txt
+ *    orig line no                          final line no
+ * commit    V  author     timestamp                  V
+ * da237394  1 (Ben Straub 2013-02-12 15:11:30 -0800  1
+ * da237394  2 (Ben Straub 2013-02-12 15:11:30 -0800  2
+ * da237394  3 (Ben Straub 2013-02-12 15:11:30 -0800  3
+ * da237394  4 (Ben Straub 2013-02-12 15:11:30 -0800  4
+ * ^b99f7ac  1 (Ben Straub 2013-02-12 15:10:12 -0800  5
+ * 63d671eb  6 (Ben Straub 2013-02-12 15:13:04 -0800  6
+ * 63d671eb  7 (Ben Straub 2013-02-12 15:13:04 -0800  7
+ * 63d671eb  8 (Ben Straub 2013-02-12 15:13:04 -0800  8
+ * 63d671eb  9 (Ben Straub 2013-02-12 15:13:04 -0800  9
+ * 63d671eb 10 (Ben Straub 2013-02-12 15:13:04 -0800 10
+ * aa06ecca  6 (Ben Straub 2013-02-12 15:14:46 -0800 11
+ * aa06ecca  7 (Ben Straub 2013-02-12 15:14:46 -0800 12
+ * aa06ecca  8 (Ben Straub 2013-02-12 15:14:46 -0800 13
+ * aa06ecca  9 (Ben Straub 2013-02-12 15:14:46 -0800 14
+ * aa06ecca 10 (Ben Straub 2013-02-12 15:14:46 -0800 15
  */
 void test_blame_simple__trivial_blamerepo(void)
 {
@@ -53,67 +57,69 @@ void test_blame_simple__trivial_blamerepo(void)
 
 
 /*
- * $ git blame -s 359fc2d -- include/git2.h
- * d12299fe src/git.h       1) / *
- * 359fc2d2 include/git2.h  2)  * Copyright (C) the libgit2 contributors. All rights reserved.
- * d12299fe src/git.h       3)  *
- * bb742ede include/git2.h  4)  * This file is part of libgit2, distributed under the GNU GPL v2 with
- * bb742ede include/git2.h  5)  * a Linking Exception. For full terms see the included COPYING file.
- * d12299fe src/git.h       6)  * /
- * d12299fe src/git.h       7) 
- * d12299fe src/git.h       8) #ifndef INCLUDE_git_git_h__
- * d12299fe src/git.h       9) #define INCLUDE_git_git_h__
- * d12299fe src/git.h      10) 
- * 96fab093 include/git2.h 11) #include "git2/version.h"
- * 9d1dcca2 src/git2.h     12) 
- * 44908fe7 src/git2.h     13) #include "git2/common.h"
- * a15c550d include/git2.h 14) #include "git2/threads.h"
- * 44908fe7 src/git2.h     15) #include "git2/errors.h"
- * d12299fe src/git.h      16) 
- * 44908fe7 src/git2.h     17) #include "git2/types.h"
- * d12299fe src/git.h      18) 
- * 44908fe7 src/git2.h     19) #include "git2/oid.h"
- * 638c2ca4 src/git2.h     20) #include "git2/signature.h"
- * 44908fe7 src/git2.h     21) #include "git2/odb.h"
- * d12299fe src/git.h      22) 
- * 44908fe7 src/git2.h     23) #include "git2/repository.h"
- * 44908fe7 src/git2.h     24) #include "git2/revwalk.h"
- * bf787bd8 include/git2.h 25) #include "git2/merge.h"
- * 0984c876 include/git2.h 26) #include "git2/graph.h"
- * 2f8a8ab2 src/git2.h     27) #include "git2/refs.h"
- * 27df4275 include/git2.h 28) #include "git2/reflog.h"
- * a346992f include/git2.h 29) #include "git2/revparse.h"
- * d12299fe src/git.h      30) 
- * 44908fe7 src/git2.h     31) #include "git2/object.h"
- * 44908fe7 src/git2.h     32) #include "git2/blob.h"
- * 44908fe7 src/git2.h     33) #include "git2/commit.h"
- * 44908fe7 src/git2.h     34) #include "git2/tag.h"
- * 44908fe7 src/git2.h     35) #include "git2/tree.h"
- * 65b09b1d include/git2.h 36) #include "git2/diff.h"
- * d12299fe src/git.h      37) 
- * 44908fe7 src/git2.h     38) #include "git2/index.h"
- * 5d4cd003 include/git2.h 39) #include "git2/config.h"
- * 41fb1ca0 include/git2.h 40) #include "git2/transport.h"
- * 2dc31040 include/git2.h 41) #include "git2/remote.h"
- * 764df57e include/git2.h 42) #include "git2/clone.h"
- * 5280f4e6 include/git2.h 43) #include "git2/checkout.h"
- * 613d5eb9 include/git2.h 44) #include "git2/push.h"
- * d12299fe src/git.h      45) 
- * 111ee3fe include/git2.h 46) #include "git2/attr.h"
- * f004c4a8 include/git2.h 47) #include "git2/ignore.h"
- * 111ee3fe include/git2.h 48) #include "git2/branch.h"
- * 9c82357b include/git2.h 49) #include "git2/refspec.h"
- * d6258deb include/git2.h 50) #include "git2/net.h"
- * b311e313 include/git2.h 51) #include "git2/status.h"
- * 3412391d include/git2.h 52) #include "git2/indexer.h"
- * bfc9ca59 include/git2.h 53) #include "git2/submodule.h"
- * bf477ed4 include/git2.h 54) #include "git2/notes.h"
- * edebceff include/git2.h 55) #include "git2/reset.h"
- * 743a4b3b include/git2.h 56) #include "git2/message.h"
- * 0a32dca5 include/git2.h 57) #include "git2/pack.h"
- * 590fb68b include/git2.h 58) #include "git2/stash.h"
- * bf477ed4 include/git2.h 59) 
- * d12299fe src/git.h      60) #endif
+ * $ git blame -n 359fc2d -- include/git2.h
+ *                     orig line no                                final line no
+ * commit   orig path       V  author              timestamp                  V
+ * d12299fe src/git.h       1 (Vicent Martí        2010-12-03 22:22:10 +0200  1
+ * 359fc2d2 include/git2.h  2 (Edward Thomson      2013-01-08 17:07:25 -0600  2
+ * d12299fe src/git.h       5 (Vicent Martí        2010-12-03 22:22:10 +0200  3
+ * bb742ede include/git2.h  4 (Vicent Martí        2011-09-19 01:54:32 +0300  4
+ * bb742ede include/git2.h  5 (Vicent Martí        2011-09-19 01:54:32 +0300  5
+ * d12299fe src/git.h      24 (Vicent Martí        2010-12-03 22:22:10 +0200  6
+ * d12299fe src/git.h      25 (Vicent Martí        2010-12-03 22:22:10 +0200  7
+ * d12299fe src/git.h      26 (Vicent Martí        2010-12-03 22:22:10 +0200  8
+ * d12299fe src/git.h      27 (Vicent Martí        2010-12-03 22:22:10 +0200  9
+ * d12299fe src/git.h      28 (Vicent Martí        2010-12-03 22:22:10 +0200 10
+ * 96fab093 include/git2.h 11 (Sven Strickroth     2011-10-09 18:37:41 +0200 11
+ * 9d1dcca2 src/git2.h     33 (Vicent Martí        2011-02-07 10:35:58 +0200 12
+ * 44908fe7 src/git2.h     29 (Vicent Martí        2010-12-06 23:03:16 +0200 13
+ * a15c550d include/git2.h 14 (Vicent Martí        2011-11-16 14:09:44 +0100 14
+ * 44908fe7 src/git2.h     30 (Vicent Martí        2010-12-06 23:03:16 +0200 15
+ * d12299fe src/git.h      32 (Vicent Martí        2010-12-03 22:22:10 +0200 16
+ * 44908fe7 src/git2.h     33 (Vicent Martí        2010-12-06 23:03:16 +0200 17
+ * d12299fe src/git.h      34 (Vicent Martí        2010-12-03 22:22:10 +0200 18
+ * 44908fe7 src/git2.h     35 (Vicent Martí        2010-12-06 23:03:16 +0200 19
+ * 638c2ca4 src/git2.h     36 (Vicent Martí        2010-12-18 02:10:25 +0200 20
+ * 44908fe7 src/git2.h     36 (Vicent Martí        2010-12-06 23:03:16 +0200 21
+ * d12299fe src/git.h      37 (Vicent Martí        2010-12-03 22:22:10 +0200 22
+ * 44908fe7 src/git2.h     38 (Vicent Martí        2010-12-06 23:03:16 +0200 23
+ * 44908fe7 src/git2.h     39 (Vicent Martí        2010-12-06 23:03:16 +0200 24
+ * bf787bd8 include/git2.h 25 (Carlos Martín Nieto 2012-04-08 18:56:50 +0200 25
+ * 0984c876 include/git2.h 26 (Scott J. Goldman    2012-11-28 18:27:43 -0800 26
+ * 2f8a8ab2 src/git2.h     41 (Vicent Martí        2011-01-29 01:56:25 +0200 27
+ * 27df4275 include/git2.h 47 (Michael Schubert    2011-06-28 14:13:12 +0200 28
+ * a346992f include/git2.h 28 (Ben Straub          2012-05-10 09:47:14 -0700 29
+ * d12299fe src/git.h      40 (Vicent Martí        2010-12-03 22:22:10 +0200 30
+ * 44908fe7 src/git2.h     41 (Vicent Martí        2010-12-06 23:03:16 +0200 31
+ * 44908fe7 src/git2.h     42 (Vicent Martí        2010-12-06 23:03:16 +0200 32
+ * 44908fe7 src/git2.h     43 (Vicent Martí        2010-12-06 23:03:16 +0200 33
+ * 44908fe7 src/git2.h     44 (Vicent Martí        2010-12-06 23:03:16 +0200 34
+ * 44908fe7 src/git2.h     45 (Vicent Martí        2010-12-06 23:03:16 +0200 35
+ * 65b09b1d include/git2.h 33 (Russell Belfer      2012-02-02 18:03:43 -0800 36
+ * d12299fe src/git.h      46 (Vicent Martí        2010-12-03 22:22:10 +0200 37
+ * 44908fe7 src/git2.h     47 (Vicent Martí        2010-12-06 23:03:16 +0200 38
+ * 5d4cd003 include/git2.h 55 (Carlos Martín Nieto 2011-03-28 17:02:45 +0200 39
+ * 41fb1ca0 include/git2.h 39 (Philip Kelley       2012-10-29 13:41:14 -0400 40
+ * 2dc31040 include/git2.h 56 (Carlos Martín Nieto 2011-06-20 18:58:57 +0200 41
+ * 764df57e include/git2.h 40 (Ben Straub          2012-06-15 13:14:43 -0700 42
+ * 5280f4e6 include/git2.h 41 (Ben Straub          2012-07-31 19:39:06 -0700 43
+ * 613d5eb9 include/git2.h 43 (Philip Kelley       2012-11-28 11:42:37 -0500 44
+ * d12299fe src/git.h      48 (Vicent Martí        2010-12-03 22:22:10 +0200 45
+ * 111ee3fe include/git2.h 41 (Vicent Martí        2012-07-11 14:37:26 +0200 46
+ * f004c4a8 include/git2.h 44 (Russell Belfer      2012-08-21 17:26:39 -0700 47
+ * 111ee3fe include/git2.h 42 (Vicent Martí        2012-07-11 14:37:26 +0200 48
+ * 9c82357b include/git2.h 58 (Carlos Martín Nieto 2011-06-17 18:13:14 +0200 49
+ * d6258deb include/git2.h 61 (Carlos Martín Nieto 2011-06-25 15:10:09 +0200 50
+ * b311e313 include/git2.h 63 (Julien Miotte       2011-07-27 18:31:13 +0200 51
+ * 3412391d include/git2.h 63 (Carlos Martín Nieto 2011-07-07 11:47:31 +0200 52
+ * bfc9ca59 include/git2.h 43 (Russell Belfer      2012-03-28 16:45:36 -0700 53
+ * bf477ed4 include/git2.h 44 (Michael Schubert    2012-02-15 00:33:38 +0100 54
+ * edebceff include/git2.h 46 (nulltoken           2012-05-01 13:57:45 +0200 55
+ * 743a4b3b include/git2.h 48 (nulltoken           2012-06-15 22:24:59 +0200 56
+ * 0a32dca5 include/git2.h 54 (Michael Schubert    2012-08-19 22:26:32 +0200 57
+ * 590fb68b include/git2.h 55 (nulltoken           2012-10-04 13:47:45 +0200 58
+ * bf477ed4 include/git2.h 45 (Michael Schubert    2012-02-15 00:33:38 +0100 59
+ * d12299fe src/git.h      49 (Vicent Martí        2010-12-03 22:22:10 +0200 60
  */
 void test_blame_simple__trivial_libgit2(void)
 {
