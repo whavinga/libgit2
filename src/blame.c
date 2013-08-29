@@ -507,6 +507,9 @@ static int process_diff_line_passing_blame(
 	}
 #endif
 
+	if (line_origin != GIT_DIFF_LINE_ADDITION)
+		return 0;
+
 	/* Check all the hunks that expect to be found at this line */
 	git_vector_foreach(&blame->unclaimed_hunks, i, hunk) {
 		if (hunk->orig_start_line_number == blame->current_diff_line)
@@ -529,10 +532,7 @@ static int process_diff_line_passing_blame(
 		}
 	}
 
-	if (line_origin == GIT_DIFF_LINE_ADDITION) {
-		blame->current_diff_line++;
-	}
-
+	blame->current_diff_line++;
 	return 0;
 }
 
