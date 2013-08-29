@@ -555,6 +555,8 @@ static void process_hunk_end_passing_blame(
 				blame->current_diff_line,
 				blame->current_hunk->orig_start_line_number + blame->current_hunk->lines_in_hunk,
 				nh->final_start_line_number);
+		if (nh != blame->current_hunk)
+			nh->current_score = 0;
 	}
 
 	/* Shift following hunks' expected locations */
