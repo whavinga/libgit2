@@ -199,10 +199,12 @@ static void shift_hunks_by_final(git_vector *v, size_t start_line, int shift_by)
 static void shift_hunks_by_orig(git_vector *v, size_t start_line, int shift_by)
 {
 	size_t i;
+	blame_hunk *hunk;
 
-	if (!git_vector_bsearch2( &i, v, hunk_byorigline_search_cmp, &start_line)) {
-		for (; i < v->length; i++) {
-			blame_hunk *hunk = (blame_hunk*)v->contents[i];
+	DEBUGF("Shifting hunks starting at orig line %zu\n", start_line);
+
+	git_vector_foreach(v, i, hunk) {
+		if (hunk->orig_start_line_number >= start_line) {
 			hunk->orig_start_line_number += shift_by;
 			DEBUGF("Shifting (o) hunk at line %hu by %d to %d\n", hunk->final_start_line_number,
 					shift_by, hunk->orig_start_line_number);
@@ -551,7 +553,7 @@ static void process_hunk_end_passing_blame(
 	if (blame->current_hunk) {
 		blame_hunk *nh = split_hunk_in_vector(&blame->unclaimed_hunks, blame->current_hunk,
 				blame->current_diff_line - blame->current_hunk->orig_start_line_number, true);
-		DEBUGF("Diff hunk ends before %zu, current hunk ends at %d, nh starts at %zu\n",
+		DEBUGF("Diff hunk ends before %zu, current hunk ends at %d, nh starts at %hu\n",
 				blame->current_diff_line,
 				blame->current_hunk->orig_start_line_number + blame->current_hunk->lines_in_hunk,
 				nh->final_start_line_number);
@@ -561,7 +563,7 @@ static void process_hunk_end_passing_blame(
 
 	/* Shift following hunks' expected locations */
 	shift_amount = range->old_lines - range->new_lines;
-	shift_hunks_by_orig(&blame->unclaimed_hunks, blame->current_diff_line+1, shift_amount);
+	shift_hunks_by_orig(&blame->unclaimed_hunks, blame->current_diff_line, shift_amount);
 }
 
 static void process_commit_end_passing_blame(git_blame *blame, git_commit *commit)
@@ -752,6 +754,8 @@ cleanup:
 		blame_hunk *hunk = (blame_hunk*)git_vector_get(&blame->unclaimed_hunks, 0);
 		claim_hunk(blame, hunk, blame->path);
 	}
+
+	/* TODO: consolidate contiguous hunks */
 
 	dump_hunks(blame);
 
