@@ -201,6 +201,7 @@ static void shift_hunks_by_orig(git_vector *v, size_t start_line, int shift_by)
 	size_t i;
 	blame_hunk *hunk;
 
+	if (!shift_by) return;
 	DEBUGF("Shifting hunks starting at orig line %zu\n", start_line);
 
 	git_vector_foreach(v, i, hunk) {
@@ -380,6 +381,7 @@ static blame_hunk *split_hunk_in_vector(
 {
 	size_t new_line_count;
 	blame_hunk *nh;
+	khiter_t k;
 
 	/* Don't split if already at a boundary */
 	if (rel_line <= 0 ||
@@ -399,7 +401,17 @@ static blame_hunk *split_hunk_in_vector(
 			hunk->orig_start_line_number+rel_line, hunk->orig_path);
 	git_oid_cpy(&nh->final_commit_id, &hunk->final_commit_id);
 	git_oid_cpy(&nh->orig_commit_id, &hunk->orig_commit_id);
+
+	/* Don't screw with the score and expected positions of the hunk */
 	nh->current_score = hunk->current_score;
+	for (k = kh_begin(hunk->linemap); k != kh_end(hunk->linemap); ++k) {
+		if (kh_exist(hunk->linemap, k)) {
+			linemap_put(nh->linemap, kh_key(hunk->linemap, k),
+					kh_val(hunk->linemap, k) + rel_line);
+		}
+	}
+
+	/* Adjust hunk that was split */
 	hunk->lines_in_hunk -= new_line_count;
 	kh_clear_line(hunk->linemap);
 	DEBUGF("Got %hu (+%d) and %hu (+%d)\n",
@@ -431,7 +443,7 @@ static void claim_hunk(git_blame *blame, blame_hunk *hunk, const char *orig_path
 	git_vector_insert_sorted(&blame->hunks, hunk, NULL);
 	blame->current_hunk = NULL;
 	kh_clear_line(hunk->linemap);
-	dump_hunks(blame);
+	/*dump_hunks(blame);*/
 }
 
 /*******************************************************************************
@@ -528,6 +540,8 @@ static int process_diff_line_passing_blame(
 						: "");
 			} else {
 				char *str = git__substrdup(raw_line(blame, hunk->final_start_line_number), 80);
+				char *newline = strchr(str, '\n');
+				if (newline) *newline = '\0';
 				DEBUGF("NOPE  -> %s…\n", str);
 				git__free(str);
 			}
@@ -555,7 +569,7 @@ static void process_hunk_end_passing_blame(
 				blame->current_diff_line - blame->current_hunk->orig_start_line_number, true);
 		DEBUGF("Diff hunk ends before %zu, current hunk ends at %d, nh starts at %hu\n",
 				blame->current_diff_line,
-				blame->current_hunk->orig_start_line_number + blame->current_hunk->lines_in_hunk,
+				blame->current_hunk->orig_start_line_number + blame->current_hunk->lines_in_hunk-1,
 				nh->final_start_line_number);
 		if (nh != blame->current_hunk)
 			nh->current_score = 0;
@@ -701,6 +715,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 			error = git_commit_parent(&parent, commit, i);
 			if (error != 0 && error != GIT_ENOTFOUND)
 				goto cleanup;
+			DEBUGF("Diffing to %s\n", oidstr(git_commit_id(parent)));
 
 			if (parent)
 				git_oid_cpy(&blame->parent_commit, git_commit_id(parent));
@@ -749,14 +764,9 @@ cleanup:
 			break;
 	}
 
-	/* Attribute dangling hunks to oldest commit in the range */
-	while (blame->unclaimed_hunks.length > 0) {
-		blame_hunk *hunk = (blame_hunk*)git_vector_get(&blame->unclaimed_hunks, 0);
-		claim_hunk(blame, hunk, blame->path);
-	}
-
 	/* TODO: consolidate contiguous hunks */
 
+	DEBUGF("==============================\nFINAL_RESULT\n");
 	dump_hunks(blame);
 
 	if (error == GIT_ITEROVER)
