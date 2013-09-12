@@ -314,9 +314,8 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 	struct origin *o;
 
 	sb.revs = walk;
-	if (((error = git_commit_lookup(&sb.final, blame->repository, &blame->options.newest_commit)) < 0) ||
-		 ((error = git_object_lookup_bypath((git_object**)&blob, (git_object*)sb.final, blame->path, GIT_OBJ_BLOB)) < 0) ||
-	    ((error = git_object_type((git_object*)blob)) != GIT_OBJ_BLOB))
+	if ((error = git_commit_lookup(&sb.final, blame->repository, &blame->options.newest_commit)) < 0 ||
+		 (error = git_object_lookup_bypath((git_object**)&blob, (git_object*)sb.final, blame->path, GIT_OBJ_BLOB)) < 0)
 		goto cleanup;
 	sb.final_buf = git_blob_rawcontent(blob);
 	sb.final_buf_size = git_blob_rawsize(blob);

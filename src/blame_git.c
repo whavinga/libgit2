@@ -296,6 +296,8 @@ static void blame_chunk_cb(long start_a, long count_a, long start_b, long count_
 static int my_emit_func(xdfenv_t *xe, xdchange_t *xscr, xdemitcb_t *ecb, xdemitconf_t const *xecfg)
 {
 	xdchange_t *xch = xscr;
+	GIT_UNUSED(xe);
+	GIT_UNUSED(xecfg);
 	while (xch) {
 		blame_chunk_cb(xch->i1, xch->chg1, xch->i2, xch->chg2, ecb->priv);
 		xch = xch->next;
@@ -338,7 +340,7 @@ static int xdi_diff(mmfile_t *mf1, mmfile_t *mf2, xpparam_t const *xpp, xdemitco
 }
 
 
-static int diff_hunks(mmfile_t *file_a, mmfile_t *file_b, void *hunk_func, void *cb_data)
+static int diff_hunks(mmfile_t *file_a, mmfile_t *file_b, void *cb_data)
 {
 	xpparam_t xpp = {0};
 	xdemitconf_t xecfg = {0};
@@ -376,7 +378,7 @@ static int pass_blame_to_parent(struct scoreboard *sb,
 	fill_origin_blob(parent, &file_p);
 	fill_origin_blob(target, &file_o);
 
-	diff_hunks(&file_p, &file_o, blame_chunk_cb, &d);
+	diff_hunks(&file_p, &file_o, &d);
 	/* The reset (i.e. anything after tlno) are the same as the parent */
 	blame_chunk(sb, d.tlno, d.plno, last_in_target, target, parent);
 
@@ -476,6 +478,7 @@ static void pass_blame(struct scoreboard *sb, struct origin *origin, uint32_t op
 	struct origin *porigin, **sg_origin = sg_buf;
 
 	DEBUGF("pass_blame: %s", dump_origin(origin));
+	GIT_UNUSED(opt);
 
 	num_sg = git_commit_parentcount(commit);
 	if (!num_sg)
