@@ -1,27 +1,6 @@
 #include "blame_git.h"
 #include "commit.h"
 
-/*#define DO_DEBUG*/
-
-#ifdef DO_DEBUG
-#define DEBUGF(...) printf(__VA_ARGS__)
-static char *oidstr(const git_oid *oid)
-{
-	static char str[10] = {0};
-	git_oid_tostr(str, 9, oid);
-	return str;
-}
-static char *dump_origin(struct origin *o)
-{
-	static char str[256] = {0};
-	sprintf(str, "commit %s", oidstr(git_commit_id(o->commit)));
-	sprintf(str+strlen(str), ", blob %s (%s)\n", o->blob ? oidstr(git_blob_id(o->blob)) : "(null)", o->path);
-	return str;
-}
-#else
-#define DEBUGF(...)
-#endif
-
 /*
  * Locate an existing origin or create a new one.
  */
@@ -54,7 +33,6 @@ struct origin* make_origin(git_commit *commit, const char *path)
 	// TODO: check errors?
 	git_object_lookup_bypath((git_object**)&o->blob, (git_object*)commit,
 			path, GIT_OBJ_BLOB);
-	DEBUGF("make_origin got %p for commit %s path %s\n", o->blob, oidstr(git_commit_id(commit)), path);
 	return o;
 }
 
@@ -109,9 +87,7 @@ static void split_overlap(struct blame_entry *split, struct blame_entry *e,
 {
 	int chunk_end_lno;
 
-	DEBUGF("Splitting: PRE ");
 	if (e->s_lno < tlno) {
-		DEBUGF("Y");
 		/* there is a pre-chunk part not blamed on the parent */
 		split[0].suspect = origin_incref(e->suspect);
 		split[0].lno = e->lno;
@@ -120,14 +96,11 @@ static void split_overlap(struct blame_entry *split, struct blame_entry *e,
 		split[1].lno = e->lno + tlno - e->s_lno;
 		split[1].s_lno = plno;
 	} else {
-		DEBUGF("N");
 		split[1].lno = e->lno;
 		split[1].s_lno = plno + (e->s_lno - tlno);
 	}
 
-	DEBUGF(" POST ");
 	if (same < e->s_lno + e->num_lines) {
-		DEBUGF("Y");
 		/* there is a post-chunk part not blamed on parent */
 		split[2].suspect = origin_incref(e->suspect);
 		split[2].lno = e->lno + (same - e->s_lno);
@@ -135,7 +108,6 @@ static void split_overlap(struct blame_entry *split, struct blame_entry *e,
 		split[2].num_lines = e->s_lno + e->num_lines - same;
 		chunk_end_lno = split[2].lno;
 	} else {
-		DEBUGF("N");
 		chunk_end_lno = e->lno + e->num_lines;
 	}
 	split[1].num_lines = chunk_end_lno - split[1].lno;
@@ -144,7 +116,6 @@ static void split_overlap(struct blame_entry *split, struct blame_entry *e,
 	 * if it turns out there is nothing to blame the parent for, forget about
 	 * the splitting. !split[1].suspect signals this.
 	 */
-	DEBUGF(" leftover %d\n", split[1].num_lines);
 	if (split[1].num_lines < 1)
 		return;
 	split[1].suspect = origin_incref(parent);
@@ -271,14 +242,12 @@ static void blame_chunk(struct scoreboard *sb, int tlno, int plno, int same, str
 {
 	struct blame_entry *e;
 
-	DEBUGF("Searching for entity for T %d P %d S %d\n", tlno, plno, same);
 	for (e = sb->ent; e; e = e->next) {
 		if (e->guilty || !same_suspect(e->suspect, target))
 			continue;
 		if (same <= e->s_lno)
 			continue;
 		if (tlno < e->s_lno + e->num_lines) {
-			DEBUGF("Found matching entity: %d+%d (orig %d\n", e->lno, e->num_lines, e->s_lno);
 			blame_overlap(sb, e, tlno, plno, same, parent);
 		}
 	}
@@ -287,7 +256,6 @@ static void blame_chunk(struct scoreboard *sb, int tlno, int plno, int same, str
 static void blame_chunk_cb(long start_a, long count_a, long start_b, long count_b, void *data)
 {
 	struct blame_chunk_cb_data *d = data;
-	DEBUGF("Chunk %ld %ld %ld %ld\n", start_a, count_a, start_b, count_b);
 	blame_chunk(d->sb, d->tlno, d->plno, start_b, d->target, d->parent);
 	d->plno = start_a + count_a;
 	d->tlno = start_b + count_b;
@@ -477,7 +445,6 @@ static void pass_blame(struct scoreboard *sb, struct origin *origin, uint32_t op
 	struct origin *sg_buf[16];
 	struct origin *porigin, **sg_origin = sg_buf;
 
-	DEBUGF("pass_blame: %s", dump_origin(origin));
 	GIT_UNUSED(opt);
 
 	num_sg = git_commit_parentcount(commit);
@@ -495,14 +462,11 @@ static void pass_blame(struct scoreboard *sb, struct origin *origin, uint32_t op
 		// TODO: check error
 		git_commit_parent(&p, origin->commit, i);
 
-		DEBUGF("parent %d\n", i);
-
 		if (sg_origin[i])
 			continue;
 		porigin = find_origin(sb, p, origin);
 		if (!porigin)
 			continue;
-		DEBUGF("         -> %s\n", dump_origin(porigin));
 		if (porigin->blob && origin->blob &&
 		    !git_oid_cmp(git_blob_id(porigin->blob), git_blob_id(origin->blob))) {
 			pass_whole_blame(sb, origin, porigin);
