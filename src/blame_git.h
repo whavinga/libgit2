@@ -80,7 +80,6 @@ struct scoreboard {
 
 	/* look-up a line in the final buffer */
 	int num_lines;
-	int *lineno;
 
 	git_blame *blame;
 };

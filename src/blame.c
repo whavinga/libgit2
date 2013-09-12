@@ -279,14 +279,12 @@ static int prepare_lines(struct scoreboard *sb)
 	const char *buf = sb->final_buf;
 	git_off_t len = sb->final_buf_size;
 	int num = 0, incomplete = 0, bol = 1;
+	size_t *i;
 
 	if (len && buf[len-1] != '\n')
 		incomplete++; /* incomplete line at the end */
 	while (len--) {
 		if (bol) {
-			sb->lineno = git__realloc(sb->lineno,
-											  sizeof(int *) * (num + 1));
-			sb->lineno[num] = buf - sb->final_buf;
 			bol = 0;
 		}
 		if (*buf++ == '\n') {
@@ -294,9 +292,6 @@ static int prepare_lines(struct scoreboard *sb)
 			bol = 1;
 		}
 	}
-	sb->lineno = git__realloc(sb->lineno,
-									  sizeof(int *) * (num + incomplete + 1));
-	sb->lineno[num + incomplete] = buf - sb->final_buf;
 	sb->num_lines = num + incomplete;
 	return sb->num_lines;
 }
