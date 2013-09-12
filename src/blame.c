@@ -85,7 +85,7 @@ static int hunk_sort_cmp_by_start_line(const void *_a, const void *_b)
 
 static bool hunk_ends_at_or_before_line(git_blame_hunk *hunk, size_t line)
 {
-	return line >= (hunk->final_start_line_number + hunk->lines_in_hunk - 1);
+	return line >= (size_t)(hunk->final_start_line_number + hunk->lines_in_hunk - 1);
 }
 
 static bool hunk_starts_at_or_after_line(git_blame_hunk *hunk, size_t line)
@@ -277,7 +277,7 @@ static git_blame_hunk *split_hunk_in_vector(
 static int prepare_lines(struct scoreboard *sb)
 {
 	const char *buf = sb->final_buf;
-	unsigned long len = sb->final_buf_size;
+	git_off_t len = sb->final_buf_size;
 	int num = 0, incomplete = 0, bol = 1;
 
 	if (len && buf[len-1] != '\n')
