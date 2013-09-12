@@ -457,7 +457,7 @@ static int buffer_hunk_cb(
 	return 0;
 }
 
-static int ptrs_equal_cmp(const void *a, const void *b) { return a - b; }
+static int ptrs_equal_cmp(const void *a, const void *b) { return a<b ? -1 : a>b ? 1 : 0; }
 static int buffer_line_cb(
 	const git_diff_delta *delta,
 	const git_diff_range *range,

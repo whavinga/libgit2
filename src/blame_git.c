@@ -66,7 +66,7 @@ struct blame_chunk_cb_data {
 	long tlno;
 };
 
-static inline bool same_suspect(struct origin *a, struct origin *b)
+static bool same_suspect(struct origin *a, struct origin *b)
 {
 	if (a == b)
 		return true;
@@ -295,13 +295,11 @@ static void blame_chunk_cb(long start_a, long count_a, long start_b, long count_
 
 static int my_emit_func(xdfenv_t *xe, xdchange_t *xscr, xdemitcb_t *ecb, xdemitconf_t const *xecfg)
 {
-	DEBUGF("+\n");
 	xdchange_t *xch = xscr;
 	while (xch) {
 		blame_chunk_cb(xch->i1, xch->chg1, xch->i2, xch->chg2, ecb->priv);
 		xch = xch->next;
 	}
-	DEBUGF("+\n");
 	return 0;
 }
 
@@ -356,7 +354,7 @@ static void fill_origin_blob(struct origin *o, mmfile_t *file)
 	memset(file, 0, sizeof(*file));
 	if (o->blob) {
 		file->ptr = (char*)git_blob_rawcontent(o->blob);
-		file->size = git_blob_rawsize(o->blob);
+		file->size = (size_t)git_blob_rawsize(o->blob);
 	}
 }
 
@@ -459,7 +457,7 @@ static void pass_whole_blame(struct scoreboard *sb,
 	struct blame_entry *e;
 
 	if (!porigin->blob)
-		git_object_lookup(&porigin->blob, sb->blame->repository, git_blob_id(origin->blob),
+		git_object_lookup((git_object**)&porigin->blob, sb->blame->repository, git_blob_id(origin->blob),
 				GIT_OBJ_BLOB);
 	for (e=sb->ent; e; e=e->next) {
 		if (!same_suspect(e->suspect, origin))
@@ -473,7 +471,7 @@ static void pass_whole_blame(struct scoreboard *sb,
 static void pass_blame(struct scoreboard *sb, struct origin *origin, uint32_t opt)
 {
 	git_commit *commit = origin->commit;
-	int i, pass, num_sg;
+	int i, num_sg;
 	struct origin *sg_buf[16];
 	struct origin *porigin, **sg_origin = sg_buf;
 
@@ -489,9 +487,10 @@ static void pass_blame(struct scoreboard *sb, struct origin *origin, uint32_t op
 
 	for (i=0; i<num_sg; i++) {
 		git_commit *p;
+		int j, same;
+
 		// TODO: check error
 		git_commit_parent(&p, origin->commit, i);
-		int j, same;
 
 		DEBUGF("parent %d\n", i);
 
