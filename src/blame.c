@@ -279,7 +279,6 @@ static int prepare_lines(struct scoreboard *sb)
 	const char *buf = sb->final_buf;
 	git_off_t len = sb->final_buf_size;
 	int num = 0, incomplete = 0, bol = 1;
-	size_t *i;
 
 	if (len && buf[len-1] != '\n')
 		incomplete++; /* incomplete line at the end */
