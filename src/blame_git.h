@@ -83,8 +83,8 @@ struct scoreboard {
 };
 
 
-struct origin *get_origin(struct scoreboard *sb, git_commit *commit, const char *path);
-struct origin* make_origin(git_commit *commit, const char *path);
+int get_origin(struct origin **out, struct scoreboard *sb, git_commit *commit, const char *path);
+int make_origin(struct origin **out, git_commit *commit, const char *path);
 struct origin *origin_incref(struct origin *o);
 void origin_decref(struct origin *o);
 void assign_blame(struct scoreboard *sb, uint32_t flags);

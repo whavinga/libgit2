@@ -4,16 +4,14 @@
 /*
  * Locate an existing origin or create a new one.
  */
-struct origin *get_origin(struct scoreboard *sb, git_commit *commit, const char *path)
+int get_origin(struct origin **out, struct scoreboard *sb, git_commit *commit, const char *path)
 {
 	struct blame_entry *e;
 
-	for (e = sb->ent; e; e = e->next) {
-		if (e->suspect->commit == commit &&
-		    !strcmp(e->suspect->path, path))
-			return origin_incref(e->suspect);
-	}
-	return make_origin(commit, path);
+	for (e = sb->ent; e; e = e->next)
+		if (e->suspect->commit == commit && !strcmp(e->suspect->path, path))
+			*out = origin_incref(e->suspect);
+	return make_origin(out, commit, path);
 }
 
 /*
@@ -22,18 +20,21 @@ struct origin *get_origin(struct scoreboard *sb, git_commit *commit, const char 
  * get_origin() to obtain shared, refcounted copy instead of calling
  * this function directly.
  */
-struct origin* make_origin(git_commit *commit, const char *path)
+int make_origin(struct origin **out, git_commit *commit, const char *path)
 {
+	int error = 0;
 	struct origin *o;
 	o = git__calloc(1, sizeof(*o) + strlen(path) + 1);
+	GITERR_CHECK_ALLOC(o);
 	o->commit = commit;
 	o->refcnt = 1;
 	strcpy(o->path, path);
 
 	// TODO: check errors?
-	git_object_lookup_bypath((git_object**)&o->blob, (git_object*)commit,
-			path, GIT_OBJ_BLOB);
-	return o;
+	if (!(error = git_object_lookup_bypath((git_object**)&o->blob, (git_object*)commit,
+			path, GIT_OBJ_BLOB)))
+		*out = o;
+	return error;
 }
 
 struct blame_chunk_cb_data {
@@ -383,7 +384,8 @@ static struct origin* find_origin(struct scoreboard *sb, git_commit *parent,
 
 	if (!git_diff_num_deltas(difflist)) {
 		/* No changes; copy data */
-		porigin = get_origin(sb, parent, origin->path);
+		// TODO: check error
+		get_origin(&porigin, sb, parent, origin->path);
 	} else {
 		git_diff_find_options findopts = GIT_DIFF_FIND_OPTIONS_INIT;
 		int i;
@@ -407,7 +409,8 @@ static struct origin* find_origin(struct scoreboard *sb, git_commit *parent,
 				continue;
 
 			git_vector_insert_sorted(&sb->blame->paths, (void*)git__strdup(delta->old_file.path), paths_on_dup);
-			porigin = make_origin(parent, delta->old_file.path);
+			// TODO: check error
+			make_origin(&porigin, parent, delta->old_file.path);
 		}
 	}
 

@@ -260,7 +260,8 @@ static int walk_and_mark(git_blame *blame)
 		goto cleanup;
 	sb.final_buf = git_blob_rawcontent(blob);
 	sb.final_buf_size = git_blob_rawsize(blob);
-	o = get_origin(&sb, sb.final, blame->path);
+	if ((error = get_origin(&o, &sb, sb.final, blame->path)) < 0)
+		goto cleanup;
 
 	ent = git__calloc(1, sizeof(*ent));
 	ent->num_lines = prepare_lines(&sb);
