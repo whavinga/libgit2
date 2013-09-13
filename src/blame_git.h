@@ -14,7 +14,6 @@ struct origin {
 	struct origin *previous;
 	git_commit *commit;
 	git_blob *blob;
-	unsigned mode;
 	char path[];
 };
 
