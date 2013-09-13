@@ -90,5 +90,6 @@ struct origin* make_origin(git_commit *commit, const char *path);
 struct origin *origin_incref(struct origin *o);
 void origin_decref(struct origin *o);
 void assign_blame(struct scoreboard *sb, uint32_t flags);
+void coalesce(struct scoreboard *sb);
 
 #endif

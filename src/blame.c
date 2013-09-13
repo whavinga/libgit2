@@ -271,7 +271,7 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 	sb.blame = blame;
 
 	assign_blame(&sb, blame->options.flags);
-	/* TODO: coalesce(&sb); */
+	coalesce(&sb);
 
 cleanup:
 	git_commit_free(sb.final);
