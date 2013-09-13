@@ -246,7 +246,7 @@ static git_blame_hunk* hunk_from_entry(struct blame_entry *e)
 	return h;
 }
 
-static int walk_and_mark(git_blame *blame, git_revwalk *walk)
+static int walk_and_mark(git_blame *blame)
 {
 	int error;
 
@@ -255,7 +255,6 @@ static int walk_and_mark(git_blame *blame, git_revwalk *walk)
 	git_blob *blob = NULL;
 	struct origin *o;
 
-	sb.revs = walk;
 	if ((error = git_commit_lookup(&sb.final, blame->repository, &blame->options.newest_commit)) < 0 ||
 		 (error = git_object_lookup_bypath((git_object**)&blob, (git_object*)sb.final, blame->path, GIT_OBJ_BLOB)) < 0)
 		goto cleanup;
@@ -278,7 +277,12 @@ cleanup:
 	git_blob_free(blob);
 	for (ent = sb.ent; ent; ) {
 		struct blame_entry *e = ent->next;
+		struct origin *o = ent->suspect;
+
 		git_vector_insert(&blame->hunks, hunk_from_entry(ent));
+
+		while (o->refcnt > 1)
+			origin_decref(o);
 		free(ent);
 		ent = e;
 	}
@@ -320,7 +324,6 @@ int git_blame_file(
 	int error = -1;
 	git_blame_options normOptions = GIT_BLAME_OPTIONS_INIT;
 	git_blame *blame = NULL;
-	git_revwalk *walk = NULL;
 
 	assert(out && repo && path);
 	normalize_options(&normOptions, options, repo);
@@ -328,27 +331,16 @@ int git_blame_file(
 	blame = git_blame__alloc(repo, normOptions, path);
 	GITERR_CHECK_ALLOC(blame);
 
-	/* Set up the revwalk */
-	if ((error = git_revwalk_new(&walk, repo)) < 0 ||
-		 (error = git_revwalk_push(walk, &normOptions.newest_commit)) < 0)
-		goto on_error;
-	if (!git_oid_iszero(&normOptions.oldest_commit) &&
-		 (error = git_revwalk_hide(walk, &normOptions.oldest_commit)) < 0)
-		goto on_error;
-	git_revwalk_sorting(walk, GIT_SORT_TIME);
-
 	if ((error = load_blob(blame, repo, &normOptions.newest_commit, path)) < 0)
 		goto on_error;
 
-	if ((error = walk_and_mark(blame, walk)) < 0)
+	if ((error = walk_and_mark(blame)) < 0)
 		goto on_error;
 
-	git_revwalk_free(walk);
 	*out = blame;
 	return 0;
 
 on_error:
-	git_revwalk_free(walk);
 	git_blame_free(blame);
 	return error;
 }

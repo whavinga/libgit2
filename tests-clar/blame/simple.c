@@ -17,7 +17,9 @@ void test_blame_simple__trivial_testrepo(void)
 	cl_assert_equal_i(2, git_blame_get_hunk_count(blame));
 	check_blame_hunk_index(repo, blame, 0, 1, 1, "c47800c7", "branch_file.txt");
 	check_blame_hunk_index(repo, blame, 1, 2, 1, "a65fedf3", "branch_file.txt");
+
 	git_blame_free(blame);
+	git_repository_free(repo);
 }
 
 /*
@@ -52,7 +54,9 @@ void test_blame_simple__trivial_blamerepo(void)
 	check_blame_hunk_index(repo, blame, 1,  5, 1, "b99f7ac0", "b.txt");
 	check_blame_hunk_index(repo, blame, 2,  6, 5, "63d671eb", "b.txt");
 	check_blame_hunk_index(repo, blame, 3, 11, 5, "aa06ecca", "b.txt");
+
 	git_blame_free(blame);
+	git_repository_free(repo);
 }
 
 

@@ -373,6 +373,7 @@ static struct origin* find_origin(struct scoreboard *sb, git_commit *parent,
 
 	/* Configure the diff */
 	diffopts.context_lines = 0;
+	diffopts.flags = GIT_DIFF_SKIP_BINARY_CHECK;
 
 	/* Check to see if files we're interested have changed */
 	diffopts.pathspec.count = sb->blame->paths.length;
@@ -459,12 +460,14 @@ static void pass_blame(struct scoreboard *sb, struct origin *origin, uint32_t op
 		git_commit *p;
 		int j, same;
 
-		// TODO: check error
-		git_commit_parent(&p, origin->commit, i);
-
 		if (sg_origin[i])
 			continue;
+
+		// TODO: check error
+		git_commit_parent(&p, origin->commit, i);
 		porigin = find_origin(sb, p, origin);
+		git_commit_free(p);
+
 		if (!porigin)
 			continue;
 		if (porigin->blob && origin->blob &&

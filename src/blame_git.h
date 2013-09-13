@@ -63,7 +63,6 @@ struct blame_entry {
 struct scoreboard {
 	/* the final commit (i.e. where we started digging from) */
 	git_commit *final;
-	git_revwalk *revs;
 	const char *path;
 
 	/*
