@@ -469,7 +469,6 @@ static void pass_blame(struct scoreboard *sb, struct origin *origin, uint32_t op
 		// TODO: check error
 		git_commit_parent(&p, origin->commit, i);
 		porigin = find_origin(sb, p, origin);
-		git_commit_free(p);
 
 		if (!porigin)
 			continue;
