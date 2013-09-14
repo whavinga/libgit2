@@ -71,6 +71,15 @@ static int treewalk_stop_immediately_cb(
 	return -100;
 }
 
+static int treewalk_skip_all_cb(
+	const char *root, const git_tree_entry *entry, void *payload)
+{
+	GIT_UNUSED(root);
+	GIT_UNUSED(entry);
+	GIT_UNUSED(payload);
+	return 100;
+}
+
 void test_object_tree_walk__1(void)
 {
 	git_oid id;
@@ -98,6 +107,11 @@ void test_object_tree_walk__1(void)
 	cl_assert_equal_i(
 		GIT_EUSER, git_tree_walk(
 			tree, GIT_TREEWALK_POST, treewalk_stop_immediately_cb, NULL));
+
+	cl_assert_equal_i(
+		GIT_OK, git_tree_walk(
+			tree, GIT_TREEWALK_PRE, treewalk_skip_all_cb, NULL));
+
 
 	git_tree_free(tree);
 }
